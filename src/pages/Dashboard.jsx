@@ -22,7 +22,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const userName = user.name || 'User';
-  const {db} = useDb();
+  const { db } = useDb();
   useEffect(() => {
     fetchDashboardData();
     // console.log('Database instance in Dashboard:', db);
@@ -30,7 +30,7 @@ const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-       const existingData = JSON.parse(localStorage.getItem("treatments")) || [];
+      const existingData = JSON.parse(localStorage.getItem("treatments")) || [];
       setData(existingData);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -43,7 +43,7 @@ const Dashboard = () => {
     if (!data) return 0;
     return data.filter(treatment => treatment.status === status).length;
   }
-    
+
 
   const totalTreatments = data?.length || 0;
 
@@ -103,7 +103,7 @@ const Dashboard = () => {
       }}>
         <CardContent>
           <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 1 }}>
-            Welcome back, {userName}!
+            Welcome back Dear, {userName}!
           </Typography>
           <Typography variant="body1" sx={{ opacity: 0.9 }}>
             It's good to see you again. Here's what's happening with your treatments today.
