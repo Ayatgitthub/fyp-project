@@ -34,7 +34,7 @@ const Sidebar = () => {
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
         <img src={logo} alt="Quraan Cure" style={{ width: '40px' }} />
         <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-          The Quraan Cure
+          Quraan Cure
         </Typography>
       </Box>
 
