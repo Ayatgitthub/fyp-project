@@ -608,32 +608,37 @@ const Diseases = () => {
                   )
                   .map((disease) => {
                     const items = disease.items || [];
-                    const treatmentItems = items.length > 0
-                      ? items
-                      : disease.surah_id
-                        ? [{
-                            type: "surah",
-                            itemId: disease.surah_id,
-                            count: disease.recitation_count || 7,
-                            ayat_from: disease.ayat_from || 1,
-                            ayat_to: disease.ayat_to || 7,
-                          }]
-                        : [];
+                    const treatmentItems =
+                      items.length > 0
+                        ? items
+                        : disease.surah_id
+                          ? [
+                              {
+                                type: "surah",
+                                itemId: disease.surah_id,
+                                count: disease.recitation_count || 7,
+                                ayat_from: disease.ayat_from || 1,
+                                ayat_to: disease.ayat_to || 7,
+                              },
+                            ]
+                          : [];
                     const itemDetails = treatmentItems.map((item) => {
                       const type = String(item.type || "item").toLowerCase();
                       let name = "";
 
                       if (type === "surah") {
                         const surah = SURAHS.find(
-                          (entry) => String(entry.surah_id) === String(item.itemId),
+                          (entry) =>
+                            String(entry.surah_id) === String(item.itemId),
                         );
                         name = surah?.EnglishName || `Surah ${item.itemId}`;
                       } else {
-                        const table = type === "hadith"
-                          ? "hadiths"
-                          : type === "durood" || type === "darood"
-                            ? "duroods"
-                            : null;
+                        const table =
+                          type === "hadith"
+                            ? "hadiths"
+                            : type === "durood" || type === "darood"
+                              ? "duroods"
+                              : null;
                         if (table && db) {
                           try {
                             const result = db.exec(
@@ -648,7 +653,12 @@ const Diseases = () => {
                         name ||= `${type} ${item.itemId}`;
                       }
 
-                      return { ...item, type, name, target: Number(item.count) || 7 };
+                      return {
+                        ...item,
+                        type,
+                        name,
+                        target: Number(item.count) || 7,
+                      };
                     });
                     const totalRecitations = itemDetails.reduce(
                       (total, item) => total + item.target,
@@ -735,7 +745,9 @@ const Diseases = () => {
                               color: "text.secondary",
                             }}
                           >
-                            {itemDetails.length > 0 ? "Treatment Items" : reference}
+                            {itemDetails.length > 0
+                              ? "Treatment Items"
+                              : reference}
                           </Typography>
 
                           {itemDetails.length > 0 && (
@@ -755,20 +767,31 @@ const Diseases = () => {
                                   }}
                                 >
                                   <Box sx={{ minWidth: 0 }}>
-                                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                                    <Typography
+                                      variant="body1"
+                                      sx={{ fontWeight: 600 }}
+                                    >
                                       {item.name}
                                     </Typography>
-                                    <Typography variant="caption" color="text.secondary">
+                                    <Typography
+                                      variant="caption"
+                                      color="text.secondary"
+                                    >
                                       {item.type === "surah"
                                         ? `Surah · Ayat ${item.ayat_from || 1}-${item.ayat_to || 7}`
-                                        : item.type === "darood" || item.type === "durood"
+                                        : item.type === "darood" ||
+                                            item.type === "durood"
                                           ? "Darood"
                                           : "Hadith"}
                                     </Typography>
                                   </Box>
                                   <Typography
                                     variant="body2"
-                                    sx={{ flexShrink: 0, fontWeight: 600, color: "primary.main" }}
+                                    sx={{
+                                      flexShrink: 0,
+                                      fontWeight: 600,
+                                      color: "primary.main",
+                                    }}
                                   >
                                     {item.target} recitations
                                   </Typography>
@@ -808,7 +831,9 @@ const Diseases = () => {
                               <span
                                 style={{ fontWeight: "bold", color: "#0d472c" }}
                               >
-                                {totalRecitations || disease.recitation_count || 0}
+                                {totalRecitations ||
+                                  disease.recitation_count ||
+                                  0}
                               </span>
                             </Typography>
                           </Box>
