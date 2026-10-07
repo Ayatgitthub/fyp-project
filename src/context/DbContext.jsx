@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import initSqlJs from 'sql.js';
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import initSqlJs from "sql.js";
 
 const DbContext = createContext(null);
 
@@ -14,12 +14,15 @@ export const DbProvider = ({ children }) => {
     const loadDatabase = async () => {
       try {
         const SQL = await initSqlJs({
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/sql.js@1.14.1/dist/${file}`,
+          locateFile: (file) =>
+            `https://cdn.jsdelivr.net/npm/sql.js@1.14.1/dist/${file}`,
         });
 
-        const response = await fetch('/database.sqlite');
+        const response = await fetch("/quraan.sqlite");
         if (!response.ok) {
-          throw new Error(`Failed to load database: ${response.status} ${response.statusText}`);
+          throw new Error(
+            `Failed to load database: ${response.status} ${response.statusText}`,
+          );
         }
 
         const buffer = await response.arrayBuffer();
@@ -53,7 +56,7 @@ export const DbProvider = ({ children }) => {
 export const useDb = () => {
   const context = useContext(DbContext);
   if (context === null) {
-    throw new Error('useDb must be used within DbProvider');
+    throw new Error("useDb must be used within DbProvider");
   }
   return context;
 };

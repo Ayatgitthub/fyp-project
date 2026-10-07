@@ -1,177 +1,297 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, IconButton, Card, CardContent, Grid, Divider, CircularProgress, Stack } from '@mui/material';
-import { useNavigate, useLocation } from 'react-router-dom';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import CancelIcon from '@mui/icons-material/Cancel';
-import API from '../axiosConfig';
+import React, { useState, useEffect } from "react";
+import {
+  Box,
+  Typography,
+  Button,
+  IconButton,
+  Card,
+  CardContent,
+  Grid,
+  Divider,
+  CircularProgress,
+  Stack,
+  LinearProgress,
+  Chip,
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import CancelIcon from "@mui/icons-material/Cancel";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
+import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
+
+/**
+ * Normalises a treatment record so it always has an `itemCounters` array.
+ * Legacy treatments (single surah_id / recitation_count) are wrapped into
+ * a one-element array so the same UI can render them.
+ */
+const normaliseTreatment = (t) => {
+  if (t.itemCounters && t.itemCounters.length > 0) return t;
+
+  const label = t.EnglishName
+    ? t.ayat_from != null
+      ? `${t.EnglishName} (Ayat ${t.ayat_from}–${t.ayat_to})`
+      : t.EnglishName
+    : "Recitation";
+
+  return {
+    ...t,
+    itemCounters: [
+      {
+        label,
+        type: "surah",
+        target: t.recitation_count || 7,
+        completed: t.completed_count || 0,
+        verses: t.verses || [],
+      },
+    ],
+  };
+};
 
 const Treatments = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const [userTreatments, setUserTreatments] = useState([]);
   const [selectedTreatment, setSelectedTreatment] = useState(null);
+  const [activeItemIndex, setActiveItemIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [detailsLoading, setDetailsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [count, setCount] = useState(0);
-
 
   useEffect(() => {
     fetchUserTreatments();
-    // if (location.state?.treatmentId) {
-    //   handleSelectTreatment(location.state.treatmentId);
-    // }
   }, []);
 
-  const fetchUserTreatments = async () => {
-
+  const fetchUserTreatments = () => {
     setLoading(true);
     try {
-      const existingData = JSON.parse(localStorage.getItem("treatments")) || [];
-      setUserTreatments(existingData);
-      console.log('Fetched treatments from localStorage:', existingData);
-    } catch (error) {
-      console.error('Error fetching user treatments:', error);
+      const raw = JSON.parse(localStorage.getItem("treatments")) || [];
+      setUserTreatments(raw.map(normaliseTreatment));
+    } catch (e) {
+      console.error("Error loading treatments:", e);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSelectTreatment = async (treatmentId) => {
-    setDetailsLoading(true);
-    try {
-    const curTreatment = userTreatments.find(t => t.treatment_id === treatmentId)
-      setSelectedTreatment(curTreatment);
-      
-      setCount(curTreatment?.completed_count || 0);
-    } catch (error) {
-      console.error('Error fetching treatment detail:', error);
-    } finally {
-      setDetailsLoading(false);
+  const persist = (treatments) => {
+    localStorage.setItem("treatments", JSON.stringify(treatments));
+  };
+
+  const handleSelectTreatment = (treatmentId) => {
+    const t = userTreatments.find((x) => x.treatment_id === treatmentId);
+    if (t) {
+      setSelectedTreatment(t);
+      setActiveItemIndex(0);
     }
   };
 
-  const handleUpdateProgress = async (newCount, newStatus) => {
+  const updateItemCounter = (delta) => {
+    if (!selectedTreatment || isUpdating) return;
     setIsUpdating(true);
-    try {
-      const updatedTreatment = {
-        ...selectedTreatment,
-        completed_count: newCount,
-        status: newCount >= selectedTreatment.recitation_count ? 'completed' : (newStatus || selectedTreatment.status)
-      };
-      
-      // Update in local state
-      setSelectedTreatment(updatedTreatment);
-      setUserTreatments(prev => prev.map(t => t.treatment_id === updatedTreatment.treatment_id ? updatedTreatment : t));
-      // Update in localStorage
-      const existingData = JSON.parse(localStorage.getItem("treatments")) || [];
-      const updatedData = existingData.map(t => t.treatment_id === updatedTreatment.treatment_id ? updatedTreatment : t);
-      localStorage.setItem("treatments", JSON.stringify(updatedData));
-        // setSelectedTreatment(null);
-      if(newStatus === 'cancelled') {
-        alert('Treatment cancelled successfully');
-        setSelectedTreatment(null);
-      }
-        fetchUserTreatments();
-      
-  
-    } catch (error) {
-      console.error('Error updating progress:', error);
-    } finally {
-      setIsUpdating(false);
-    }
+
+    const updatedCounters = selectedTreatment.itemCounters.map((item, idx) => {
+      if (idx !== activeItemIndex) return item;
+      const newCompleted = Math.max(
+        0,
+        Math.min((item.completed || 0) + delta, item.target),
+      );
+      return { ...item, completed: newCompleted };
+    });
+
+    const allDone = updatedCounters.every(
+      (item) => item.completed >= item.target,
+    );
+    const overallCompleted = updatedCounters.reduce(
+      (s, i) => s + (i.completed || 0),
+      0,
+    );
+    const overallTarget = updatedCounters.reduce((s, i) => s + i.target, 0);
+
+    const updated = {
+      ...selectedTreatment,
+      itemCounters: updatedCounters,
+      completed_count: overallCompleted,
+      recitation_count: overallTarget,
+      status: allDone ? "completed" : "in_progress",
+    };
+
+    setSelectedTreatment(updated);
+    const newList = userTreatments.map((t) =>
+      t.treatment_id === updated.treatment_id ? updated : t,
+    );
+    setUserTreatments(newList);
+    persist(newList);
+    setIsUpdating(false);
   };
 
-  const handleIncrement = () => {
-    const newCount = count + 1;
-    setCount(newCount);
-    handleUpdateProgress(newCount);
-  };
+  const handleIncrement = () => updateItemCounter(1);
+  const handleDecrement = () => updateItemCounter(-1);
 
-  const handleReset = () => {
-    setCount(0);
-    handleUpdateProgress(0);
+  const handleResetItem = () => {
+    if (!selectedTreatment) return;
+    const updatedCounters = selectedTreatment.itemCounters.map((item, idx) =>
+      idx === activeItemIndex ? { ...item, completed: 0 } : item,
+    );
+    const overallCompleted = updatedCounters.reduce(
+      (s, i) => s + (i.completed || 0),
+      0,
+    );
+    const overallTarget = updatedCounters.reduce((s, i) => s + i.target, 0);
+    const updated = {
+      ...selectedTreatment,
+      itemCounters: updatedCounters,
+      completed_count: overallCompleted,
+      recitation_count: overallTarget,
+      status: "in_progress",
+    };
+    setSelectedTreatment(updated);
+    const newList = userTreatments.map((t) =>
+      t.treatment_id === updated.treatment_id ? updated : t,
+    );
+    setUserTreatments(newList);
+    persist(newList);
   };
 
   const handleCancelTreatment = () => {
-    if (window.confirm('Are you sure you want to cancel this treatment?')) {
-      handleUpdateProgress(count, 'cancelled');
-    }
+    if (!window.confirm("Cancel this treatment?")) return;
+    const updated = { ...selectedTreatment, status: "cancelled" };
+    const newList = userTreatments.map((t) =>
+      t.treatment_id === updated.treatment_id ? updated : t,
+    );
+    setUserTreatments(newList);
+    persist(newList);
+    setSelectedTreatment(null);
+    alert("Treatment cancelled.");
   };
 
-  if (loading || detailsLoading) {
+  // Loading
+  if (loading) {
     return (
-      <Box sx={{ p: 5, textAlign: 'center' }}>
+      <Box sx={{ p: 5, textAlign: "center" }}>
         <CircularProgress />
       </Box>
     );
   }
 
-  // List View
+  // Treatment List
   if (!selectedTreatment) {
+    const inProgress = userTreatments.filter((t) => t.status === "in_progress");
     return (
       <Box sx={{ p: 1 }}>
-        <Typography variant="h3" sx={{ fontWeight: 'bold', mb: 4 }}>
+        <Typography variant="h3" sx={{ fontWeight: "bold", mb: 4 }}>
           In-Progress Treatments
         </Typography>
 
-        {userTreatments.filter(t => t.status === 'in_progress').length === 0 ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="h5" color="text.secondary">No treatments in progress.</Typography>
-            <Button onClick={() => navigate('/app/diseases')} sx={{ mt: 3 }} variant="contained">
+        {inProgress.length === 0 ? (
+          <Box sx={{ p: 3, textAlign: "center" }}>
+            <Typography variant="h5" color="text.secondary">
+              No treatments in progress.
+            </Typography>
+            <Button
+              onClick={() => navigate("/app/diseases")}
+              sx={{ mt: 3 }}
+              variant="contained"
+            >
               Browse Diseases
             </Button>
           </Box>
         ) : (
           <Grid container spacing={3}>
-            {userTreatments.filter(t => t.status === 'in_progress').map((t) => (
-              <Grid item xs={12} sm={6} md={4} key={t.treatment_id}>
-                <Card
-                  onClick={() => handleSelectTreatment(t.treatment_id)}
-                  sx={{
-                    cursor: 'pointer',
-                    borderRadius: 4,
-                    boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
-                    transition: 'all 0.3s ease',
-                    '&:hover': {
-                      transform: 'translateY(-8px)',
-                      boxShadow: '0 8px 25px rgba(0,0,0,0.1)'
-                    }
-                  }}
-                >
-                  <CardContent sx={{ pb: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
-                      {t.disease_name}
-                    </Typography>
-                    <Typography variant="subtitle2" color="primary" sx={{ mb: 2 }}>
-                      {t.EnglishName}, Ayat: {t.ayat_from}-{t.ayat_to}
-                    </Typography>
-                    <Divider sx={{ mb: 2 }} />
-                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
-                      Progress: {t.completed_count} / {t.recitation_count}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
+            {inProgress.map((t) => {
+              const overallDone =
+                t.itemCounters?.reduce((s, i) => s + (i.completed || 0), 0) ??
+                0;
+              const overallTarget =
+                t.itemCounters?.reduce((s, i) => s + i.target, 0) ?? 1;
+              const pct = Math.min(
+                100,
+                Math.round((overallDone / overallTarget) * 100),
+              );
+              return (
+                <Grid item xs={12} sm={6} md={4} key={t.treatment_id}>
+                  <Card
+                    onClick={() => handleSelectTreatment(t.treatment_id)}
+                    sx={{
+                      cursor: "pointer",
+                      borderRadius: 4,
+                      boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
+                      transition: "all 0.3s ease",
+                      "&:hover": {
+                        transform: "translateY(-8px)",
+                        boxShadow: "0 8px 25px rgba(0,0,0,0.1)",
+                      },
+                    }}
+                  >
+                    <CardContent sx={{ pb: 2 }}>
+                      <Typography
+                        variant="h6"
+                        sx={{ fontWeight: "bold", mb: 0.5 }}
+                      >
+                        {t.disease_name}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        sx={{ mb: 1.5 }}
+                      >
+                        {t.itemCounters?.length ?? 1} item(s) · {overallDone}/
+                        {overallTarget} recitations
+                      </Typography>
+                      <LinearProgress
+                        variant="determinate"
+                        value={pct}
+                        sx={{ borderRadius: 4, height: 8, mb: 1 }}
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        {pct}% complete
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
           </Grid>
         )}
       </Box>
     );
   }
 
-  // Active View
+  // Active Treatment View
+  const items = selectedTreatment.itemCounters || [];
+  const activeItem = items[activeItemIndex] || {};
+  const isItemDone = (activeItem.completed || 0) >= activeItem.target;
+  const allDone = items.every((i) => (i.completed || 0) >= i.target);
+  const itemPct = Math.min(
+    100,
+    Math.round(((activeItem.completed || 0) / (activeItem.target || 1)) * 100),
+  );
+
   return (
     <Box sx={{ p: 1 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <IconButton onClick={() => setSelectedTreatment(null)} color="primary" sx={{ mr: 1 }}>
+      {/* Header */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 4,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <IconButton
+            onClick={() => setSelectedTreatment(null)}
+            color="primary"
+            sx={{ mr: 1 }}
+          >
             <ArrowBackIcon />
           </IconButton>
-          <Typography variant="h3" sx={{ fontWeight: 'bold' }}>
-            Active Treatment
-          </Typography>
+          <Box>
+            <Typography variant="h3" sx={{ fontWeight: "bold" }}>
+              Active Treatment
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {selectedTreatment.disease_name}
+            </Typography>
+          </Box>
         </Box>
         <Button
           variant="outlined"
@@ -179,73 +299,239 @@ const Treatments = () => {
           startIcon={<CancelIcon />}
           onClick={handleCancelTreatment}
           sx={{ borderRadius: 2 }}
-          disabled={isUpdating || count >= selectedTreatment.recitation_count}
+          disabled={isUpdating || allDone}
         >
-          Cancel Treatment
+          Cancel
         </Button>
       </Box>
 
-      <Card sx={{ borderRadius: 3, boxShadow: '0 4px 15px rgba(0,0,0,0.05)', mb: 4, textAlign: 'center' }}>
+      {/* Item tabs */}
+      {items.length > 1 && (
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ mb: 3, flexWrap: "wrap", gap: 1 }}
+        >
+          {items.map((item, idx) => (
+            <Chip
+              key={idx}
+              label={`${idx + 1}. ${item.label}`}
+              onClick={() => setActiveItemIndex(idx)}
+              icon={
+                (item.completed || 0) >= item.target ? (
+                  <CheckCircleIcon />
+                ) : undefined
+              }
+              color={
+                idx === activeItemIndex
+                  ? "primary"
+                  : (item.completed || 0) >= item.target
+                    ? "success"
+                    : "default"
+              }
+              variant={idx === activeItemIndex ? "filled" : "outlined"}
+              sx={{
+                cursor: "pointer",
+                fontWeight: idx === activeItemIndex ? "bold" : "normal",
+              }}
+            />
+          ))}
+        </Stack>
+      )}
+
+      {/* Counter card */}
+      <Card
+        sx={{
+          borderRadius: 3,
+          boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
+          mb: 3,
+          textAlign: "center",
+        }}
+      >
         <CardContent sx={{ p: 4 }}>
-          <Typography variant="h5" color="primary" sx={{ fontWeight: 'bold', mb: 1 }}>
-            {selectedTreatment.EnglishName}, Ayat: {selectedTreatment.ayat_from}-{selectedTreatment.ayat_to}
+          <Chip
+            label={activeItem.type?.toUpperCase() || "SURAH"}
+            color="primary"
+            size="small"
+            sx={{ mb: 2, fontWeight: "bold" }}
+          />
+          <Typography variant="h5" sx={{ fontWeight: "bold", mb: 0.5 }}>
+            {activeItem.label}
           </Typography>
-          <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 4 }}>
-            For {selectedTreatment.disease_name}
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Target: {activeItem.target} recitations
           </Typography>
 
-          <Box sx={{ mb: 4, direction: 'rtl' }}>
-            {selectedTreatment.verses?.map((v, index) => (
-              <Typography
-                key={index}
-                variant="h4"
-                sx={{
-                  fontFamily: 'Amiri, serif',
-                  lineHeight: 1.8,
-                  color: '#0d472c',
-                  mb: 2
-                }}
-              >
-                {v.arabic} ({v.ayah_id})
-              </Typography>
-            ))}
+          {/* Arabic verses */}
+          {activeItem.verses && activeItem.verses.length > 0 && (
+            <Box
+              sx={{
+                p: 2.5,
+                bgcolor: "rgba(13, 71, 44, 0.03)",
+                borderRadius: 2,
+                mb: 3,
+                direction: "rtl",
+                textAlign: "right",
+              }}
+            >
+              {activeItem.verses.map((v, i) => (
+                <Typography
+                  key={i}
+                  variant="h5"
+                  sx={{
+                    fontFamily: "'Amiri', serif",
+                    color: "#0d472c",
+                    lineHeight: 1.9,
+                    mb: 1,
+                  }}
+                >
+                  {v.arabic}
+                </Typography>
+              ))}
+            </Box>
+          )}
+
+          {/* Progress bar */}
+          <Box sx={{ mb: 3 }}>
+            <LinearProgress
+              variant="determinate"
+              value={itemPct}
+              color={isItemDone ? "success" : "primary"}
+              sx={{ height: 10, borderRadius: 5, mb: 1 }}
+            />
+            <Typography variant="body2" color="text.secondary">
+              {activeItem.completed ?? 0} / {activeItem.target} — {itemPct}%
+            </Typography>
           </Box>
 
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Completed Recitations
-          </Typography>
-
+          {/* Big counter button */}
           <Button
             variant="contained"
-            color={count >= selectedTreatment.recitation_count ? "success" : "primary"}
+            color={isItemDone ? "success" : "primary"}
             onClick={handleIncrement}
-            disabled={isUpdating || count >= selectedTreatment.recitation_count}
+            disabled={isUpdating || isItemDone}
             sx={{
               width: 150,
               height: 150,
-              borderRadius: '50%',
-              fontSize: '3rem',
-              fontWeight: 'bold',
-              boxShadow: '0 8px 25px rgba(13, 71, 44, 0.3)',
-              mb: 3
+              borderRadius: "50%",
+              fontSize: "3rem",
+              fontWeight: "bold",
+              boxShadow: "0 8px 25px rgba(13, 71, 44, 0.3)",
+              mb: 3,
             }}
           >
-            {isUpdating ? <CircularProgress color="inherit" /> : count}
+            {isUpdating ? (
+              <CircularProgress color="inherit" size={40} />
+            ) : (
+              (activeItem.completed ?? 0)
+            )}
           </Button>
 
-          {count >= selectedTreatment.recitation_count && (
-            <Typography variant="h6" color="success.main" sx={{ fontWeight: 'bold', display: 'block', mb: 2, mt: 2 }}>
-              Alhamdulillah, you have completed the treatment!
+          {isItemDone && (
+            <Typography
+              variant="h6"
+              color="success.main"
+              sx={{ fontWeight: "bold", display: "block", mb: 2 }}
+            >
+              ✓ Alhamdulillah, this item is complete!
             </Typography>
           )}
 
-          <Stack direction="row" spacing={2} justifyContent="center" sx={{ mt: 3 }}>
-            <Button variant="outlined" onClick={handleReset} disabled={isUpdating || count >= selectedTreatment.recitation_count}>
-              Reset Counter
+          {/* Controls */}
+          <Stack
+            direction="row"
+            spacing={2}
+            justifyContent="center"
+            sx={{ mt: 2 }}
+          >
+            <Button
+              variant="outlined"
+              onClick={handleDecrement}
+              disabled={isUpdating || (activeItem.completed ?? 0) === 0}
+            >
+              − Undo
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={handleResetItem}
+              disabled={isUpdating || (activeItem.completed ?? 0) === 0}
+            >
+              Reset
             </Button>
           </Stack>
         </CardContent>
       </Card>
+
+      {/* Prev / Next navigation */}
+      {items.length > 1 && (
+        <Stack
+          direction="row"
+          spacing={2}
+          justifyContent="space-between"
+          sx={{ mb: 3 }}
+        >
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBackIosNewIcon />}
+            onClick={() => setActiveItemIndex((i) => Math.max(0, i - 1))}
+            disabled={activeItemIndex === 0}
+          >
+            Previous
+          </Button>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ alignSelf: "center" }}
+          >
+            {activeItemIndex + 1} of {items.length}
+          </Typography>
+          <Button
+            variant="outlined"
+            endIcon={<ArrowForwardIosIcon />}
+            onClick={() =>
+              setActiveItemIndex((i) => Math.min(items.length - 1, i + 1))
+            }
+            disabled={activeItemIndex === items.length - 1}
+          >
+            Next
+          </Button>
+        </Stack>
+      )}
+
+      {/* All done banner */}
+      {allDone && (
+        <Card
+          sx={{
+            borderRadius: 3,
+            background: "linear-gradient(135deg, #0d472c 0%, #1c6643 100%)",
+            color: "#fff",
+            textAlign: "center",
+          }}
+        >
+          <CardContent sx={{ p: 4 }}>
+            <CheckCircleIcon sx={{ fontSize: 60, mb: 2, color: "#FFB300" }} />
+            <Typography variant="h4" sx={{ fontWeight: "bold", mb: 1 }}>
+              Treatment Complete!
+            </Typography>
+            <Typography variant="body1" sx={{ opacity: 0.9, mb: 3 }}>
+              Alhamdulillah — you have completed all recitations for{" "}
+              {selectedTreatment.disease_name}.
+            </Typography>
+            <Button
+              variant="contained"
+              sx={{
+                bgcolor: "#FFB300",
+                color: "#0d472c",
+                fontWeight: "bold",
+                "&:hover": { bgcolor: "#FFA000" },
+              }}
+              onClick={() => setSelectedTreatment(null)}
+            >
+              Back to Treatments
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </Box>
   );
 };
