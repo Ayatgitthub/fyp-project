@@ -64,11 +64,13 @@ const DiseaseDetail = () => {
   useEffect(() => {
     if (db) {
       try {
-        const surahResult = db.exec("SELECT Id, surah_names FROM surahs");
+        const surahResult = db.exec("SELECT Id, surah_names, surah_Urdu_Names FROM surahs ORDER BY Id ASC");
         if (surahResult.length > 0 && surahResult[0].values.length > 0) {
           const surahsData = surahResult[0].values.map((row) => ({
-            surah_id: row[0],
-            EnglishName: row[1]
+            surah_id: Number(row[0]),
+            Id: Number(row[0]),
+            EnglishName: row[1] || `Surah ${row[0]}`,
+            ArabicName: row[2] || "",
           }));
           setFetchedSurahs(surahsData);
         }
@@ -126,35 +128,64 @@ const DiseaseDetail = () => {
 
   const handleStartSingleTreatment = (item, itemName) => {
     const existing = JSON.parse(localStorage.getItem("treatments")) || [];
-    const newId = existing.length + 1;
+    const newId = existing.length > 0 ? Math.max(...existing.map((t) => Number(t.treatment_id) || 0)) + 1 : 1;
 
     let verses = [];
-    if (item.type === 'surah') {
-      try {
-        const versesResult = db.exec(
-          `SELECT VerseId, AyahText FROM Quran WHERE SuraId = ? AND VerseId >= ? AND VerseId <= ?`,
-          [item.itemId, item.ayat_from || 1, item.ayat_to || 7]
-        );
-        if (versesResult.length > 0 && versesResult[0].values.length > 0) {
-          verses = versesResult[0].values.map((row) => ({
-            ayah_id: row[0],
-            arabic: row[1],
-          }));
-        } else {
-          // fallback verse
-          verses = [{
-            ayah_id: `${itemName} ${item.ayat_from || 1}-${item.ayat_to || 7}`,
-            arabic: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ ۝ وَإِذَا مَرِضْتُ فَهُوَ يَشْفِينِ'
-          }];
+    if (item.type === 'surah' || !item.type) {
+      if (db) {
+        try {
+          const sId = Number(item.itemId || disease.surah_id || 1);
+          const vFrom = Number(item.ayat_from || 1);
+          const vTo = Number(item.ayat_to || 7);
+          const versesResult = db.exec(
+            `SELECT VerseID, AyahText FROM Quran WHERE SuraID = ? AND VerseID >= ? AND VerseID <= ? ORDER BY VerseID ASC`,
+            [sId, vFrom, vTo]
+          );
+          if (versesResult.length > 0 && versesResult[0].values.length > 0) {
+            let urduMap = {};
+            try {
+              const urduRes = db.exec(
+                `SELECT VerseID, AyahText FROM quran_urdu WHERE SuraID = ? AND VerseID >= ? AND VerseID <= ? ORDER BY VerseID ASC`,
+                [sId, vFrom, vTo]
+              );
+              if (urduRes.length > 0 && urduRes[0].values.length > 0) {
+                urduRes[0].values.forEach(([vId, uText]) => {
+                  urduMap[vId] = uText;
+                });
+              }
+            } catch (e) {}
+
+            verses = versesResult[0].values.map((row) => ({
+              ayah_id: row[0],
+              arabic: row[1],
+              urdu: urduMap[row[0]] || "",
+            }));
+          }
+        } catch (e) {
+          console.warn("Error querying verses from Quran:", e);
         }
-      } catch (e) {
+      }
+      if (verses.length === 0 && db) {
+        try {
+          const fallbackRes = db.exec(
+            `SELECT VerseID, AyahText FROM Quran WHERE SuraID = 1 AND VerseID >= 1 AND VerseID <= 7 ORDER BY VerseID ASC`
+          );
+          if (fallbackRes.length > 0 && fallbackRes[0].values.length > 0) {
+            verses = fallbackRes[0].values.map((row) => ({
+              ayah_id: row[0],
+              arabic: row[1],
+            }));
+          }
+        } catch (e) {}
+      }
+      if (verses.length === 0) {
         verses = [{
           ayah_id: `${itemName} ${item.ayat_from || 1}-${item.ayat_to || 7}`,
           arabic: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ ۝ وَإِذَا مَرِضْتُ فَهُوَ يَشْفِينِ'
         }];
       }
     } else {
-      // For hadith and durood, provide a generic text or fetch from DB if text exists
+      // For hadith and durood, provide generic or DB text
       verses = [{
         ayah_id: `${itemName}`,
         arabic: 'Text for ' + itemName
@@ -188,6 +219,90 @@ const DiseaseDetail = () => {
     };
 
     localStorage.setItem("treatments", JSON.stringify([...existing, newTreatment]));
+    navigate('/app/treatments');
+  };
+
+  const handleStartFullTreatment = () => {
+    const existing = JSON.parse(localStorage.getItem("treatments")) || [];
+    const newId = existing.length > 0 ? Math.max(...existing.map((t) => Number(t.treatment_id) || 0)) + 1 : 1;
+
+    const itemCounters = items.map((item, idx) => {
+      let itemName = "";
+      if (item.type === 'surah' || !item.type) {
+        const s = fetchedSurahs.find((x) => String(x.surah_id) === String(item.itemId || disease.surah_id));
+        itemName = s ? s.EnglishName : `Surah ${item.itemId || disease.surah_id || 1}`;
+      } else if (item.type === 'hadith') {
+        const h = fetchedHadiths.find((x) => String(x.id) === String(item.itemId));
+        itemName = h ? h.title : `Hadith ${item.itemId}`;
+      } else {
+        const d = fetchedDuroods.find((x) => String(x.id) === String(item.itemId));
+        itemName = d ? d.title : `Durood ${item.itemId}`;
+      }
+
+      let verses = [];
+      if (item.type === 'surah' || !item.type) {
+        if (db) {
+          try {
+            const sId = Number(item.itemId || disease.surah_id || 1);
+            const vFrom = Number(item.ayat_from || 1);
+            const vTo = Number(item.ayat_to || 7);
+            const vRes = db.exec(
+              `SELECT VerseID, AyahText FROM Quran WHERE SuraID = ? AND VerseID >= ? AND VerseID <= ? ORDER BY VerseID ASC`,
+              [sId, vFrom, vTo]
+            );
+            if (vRes.length > 0 && vRes[0].values.length > 0) {
+              verses = vRes[0].values.map(([vId, aText]) => ({ ayah_id: vId, arabic: aText }));
+            }
+          } catch (e) {}
+        }
+        if (verses.length === 0 && db) {
+          try {
+            const fallbackRes = db.exec(
+              `SELECT VerseID, AyahText FROM Quran WHERE SuraID = 1 AND VerseID >= 1 AND VerseID <= 7 ORDER BY VerseID ASC`
+            );
+            if (fallbackRes.length > 0 && fallbackRes[0].values.length > 0) {
+              verses = fallbackRes[0].values.map(([vId, aText]) => ({ ayah_id: vId, arabic: aText }));
+            }
+          } catch (e) {}
+        }
+        if (verses.length === 0) {
+          verses = [{
+            ayah_id: `${itemName} ${item.ayat_from || 1}-${item.ayat_to || 7}`,
+            arabic: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ ۝ وَإِذَا مَرِضْتُ فَهُوَ يَشْفِينِ'
+          }];
+        }
+      } else {
+        verses = [{ ayah_id: itemName, arabic: 'Text for ' + itemName }];
+      }
+
+      const itemLabel = item.type === 'surah' && item.ayat_from && item.ayat_to
+        ? `${itemName} (Ayat ${item.ayat_from}-${item.ayat_to})`
+        : itemName;
+
+      return {
+        label: itemLabel,
+        type: item.type || 'surah',
+        target: Number(item.count) || 7,
+        completed: 0,
+        verses,
+      };
+    });
+
+    const totalCount = itemCounters.reduce((s, i) => s + i.target, 0);
+    const allVerses = itemCounters.flatMap((i) => i.verses);
+
+    const fullTreatment = {
+      treatment_id: newId,
+      EnglishName: `${disease.name} Treatment`,
+      disease_name: disease.name,
+      recitation_count: totalCount || 7,
+      completed_count: 0,
+      status: 'in_progress',
+      itemCounters,
+      verses: allVerses,
+    };
+
+    localStorage.setItem("treatments", JSON.stringify([fullTreatment, ...existing]));
     navigate('/app/treatments');
   };
 
@@ -241,7 +356,7 @@ const DiseaseDetail = () => {
       >
         <CardContent sx={{ p: 3.5 }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={8}>
+            <Grid item xs={12} md={7}>
               <Chip
                 label="Recommended Spiritual Treatment"
                 size="small"
@@ -254,24 +369,43 @@ const DiseaseDetail = () => {
                 Recite the structured sequence: Opening Durood ➔ Quranic Shifa Verses ➔ Prophetic Healing Supplication ➔ Closing Salawat.
               </Typography>
             </Grid>
-            <Grid item xs={12} md={4} sx={{ textAlign: { xs: 'left', md: 'right' } }}>
-              <Button
-                variant="contained"
-                size="large"
-                startIcon={<FormatListNumberedIcon />}
-                onClick={() => navigate('/app/chain')}
-                sx={{
-                  bgcolor: '#FFB300',
-                  color: '#0d472c',
-                  fontWeight: 'bold',
-                  borderRadius: 3,
-                  px: 3,
-                  py: 1.5,
-                  '&:hover': { bgcolor: '#FFA000' }
-                }}
-              >
-                Launch Chain Wazifa
-              </Button>
+            <Grid item xs={12} md={5} sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+              <Stack direction="row" spacing={1.5} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<PlayArrowIcon />}
+                  onClick={handleStartFullTreatment}
+                  sx={{
+                    bgcolor: '#2e7d32',
+                    color: '#ffffff',
+                    fontWeight: 'bold',
+                    borderRadius: 3,
+                    px: 2.5,
+                    py: 1.5,
+                    '&:hover': { bgcolor: '#1b5e20' }
+                  }}
+                >
+                  Start Treatment
+                </Button>
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<FormatListNumberedIcon />}
+                  onClick={() => navigate('/app/chain')}
+                  sx={{
+                    bgcolor: '#FFB300',
+                    color: '#0d472c',
+                    fontWeight: 'bold',
+                    borderRadius: 3,
+                    px: 2.5,
+                    py: 1.5,
+                    '&:hover': { bgcolor: '#FFA000' }
+                  }}
+                >
+                  Chain Wazifa
+                </Button>
+              </Stack>
             </Grid>
           </Grid>
         </CardContent>

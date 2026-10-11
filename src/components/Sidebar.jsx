@@ -18,7 +18,6 @@ const Sidebar = () => {
     { text: 'Diseases', path: '/app/diseases', icon: <CoronavirusIcon /> },
     { text: 'Active Treatments', path: '/app/treatments', icon: <LocalHospitalIcon /> },
     { text: 'Logs', path: '/app/logs', icon: <BookmarkIcon /> },
-    { text: 'Quran Tracker', path: '/app/quran-tracker', icon: <BookmarkIcon /> },
   ];
 
   return (

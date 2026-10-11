@@ -20,6 +20,87 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import { SURAHS } from "../constants/surahs";
+import { useDb } from "../context/DbContext";
+
+/**
+ * Resolves actual verses from SQLite Quran and quran_urdu tables
+ */
+const resolveItemVerses = (db, item, treatment) => {
+  if (!db) return item.verses || [];
+
+  const isStaticOrEmpty =
+    !item.verses ||
+    item.verses.length === 0 ||
+    item.verses.every(
+      (v) =>
+        !v.arabic ||
+        v.arabic.includes("وَإِذَا مَرِضْتُ فَهُوَ يَشْفِينِ") ||
+        v.arabic.includes("واذا مرضت")
+    );
+
+  if (!isStaticOrEmpty && item.verses.length > 0) {
+    return item.verses;
+  }
+
+  let surahId = item.itemId || item.surah_id || treatment?.surah_id;
+  let ayatFrom = item.ayat_from || item.ayatFrom || treatment?.ayat_from || 1;
+  let ayatTo = item.ayat_to || item.ayatTo || treatment?.ayat_to || 7;
+
+  if (!surahId || isNaN(Number(surahId))) {
+    const textToMatch = `${item.label || ""} ${item.name || ""} ${treatment?.disease_name || ""} ${treatment?.EnglishName || ""}`;
+    const surahMatch = SURAHS.find(
+      (s) =>
+        textToMatch.toLowerCase().includes(s.EnglishName.toLowerCase()) ||
+        (s.ArabicName && textToMatch.includes(s.ArabicName))
+    );
+    if (surahMatch) {
+      surahId = surahMatch.surah_id;
+    }
+  }
+
+  if (item.label) {
+    const match = item.label.match(/Ayat\s*(\d+)\s*[-–]\s*(\d+)/i);
+    if (match) {
+      ayatFrom = Number(match[1]);
+      ayatTo = Number(match[2]);
+    }
+  }
+
+  const sId = Number(surahId) || 1;
+  const vFrom = Number(ayatFrom) || 1;
+  const vTo = Number(ayatTo) || 7;
+
+  try {
+    const res = db.exec(
+      `SELECT VerseID, AyahText FROM Quran WHERE SuraID = ? AND VerseID >= ? AND VerseID <= ? ORDER BY VerseID ASC`,
+      [sId, vFrom, vTo]
+    );
+    if (res.length > 0 && res[0].values.length > 0) {
+      let urduMap = {};
+      try {
+        const uRes = db.exec(
+          `SELECT VerseID, AyahText FROM quran_urdu WHERE SuraID = ? AND VerseID >= ? AND VerseID <= ? ORDER BY VerseID ASC`,
+          [sId, vFrom, vTo]
+        );
+        if (uRes.length > 0 && uRes[0].values.length > 0) {
+          uRes[0].values.forEach(([vId, uText]) => {
+            urduMap[vId] = uText;
+          });
+        }
+      } catch { }
+
+      return res[0].values.map(([vId, aText]) => ({
+        ayah_id: vId,
+        arabic: aText,
+        urdu: urduMap[vId] || "",
+      }));
+    }
+  } catch (err) {
+    console.warn("Error resolving verses from Quran table:", err);
+  }
+
+  return item.verses || [];
+};
 
 /**
  * Resolves a friendly display name for a treatment item or fallback surah.
@@ -168,6 +249,7 @@ const normaliseTreatment = (t) => {
 
 const Treatments = () => {
   const navigate = useNavigate();
+  const { db } = useDb();
   const [userTreatments, setUserTreatments] = useState([]);
   const [selectedTreatment, setSelectedTreatment] = useState(null);
   const [activeItemIndex, setActiveItemIndex] = useState(0);
@@ -194,9 +276,74 @@ const Treatments = () => {
     localStorage.setItem("treatments", JSON.stringify(treatments));
   };
 
+  // Dynamically resolve and upgrade static/empty verses when treatment is selected or db is loaded
+  useEffect(() => {
+    if (db && selectedTreatment && selectedTreatment.itemCounters) {
+      let changed = false;
+      const updatedCounters = selectedTreatment.itemCounters.map((item) => {
+        const resolved = resolveItemVerses(db, item, selectedTreatment);
+        if (
+          resolved.length > 0 &&
+          JSON.stringify(resolved) !== JSON.stringify(item.verses)
+        ) {
+          changed = true;
+          return { ...item, verses: resolved };
+        }
+        return item;
+      });
+
+      if (changed) {
+        const updated = {
+          ...selectedTreatment,
+          itemCounters: updatedCounters,
+          verses: updatedCounters.flatMap((i) => i.verses || []),
+        };
+        setSelectedTreatment(updated);
+        const newList = userTreatments.map((x) =>
+          x.treatment_id === updated.treatment_id ? updated : x
+        );
+        setUserTreatments(newList);
+        persist(newList);
+      }
+    }
+  }, [db, selectedTreatment?.treatment_id, activeItemIndex]);
+
   const handleSelectTreatment = (treatmentId) => {
     const t = userTreatments.find((x) => x.treatment_id === treatmentId);
     if (t) {
+      // Resolve verses dynamically from SQLite Quran table if static or empty
+      if (db && t.itemCounters) {
+        let updated = false;
+        const newCounters = t.itemCounters.map((item) => {
+          const resolvedVerses = resolveItemVerses(db, item, t);
+          if (
+            resolvedVerses.length > 0 &&
+            JSON.stringify(resolvedVerses) !== JSON.stringify(item.verses)
+          ) {
+            updated = true;
+            return { ...item, verses: resolvedVerses };
+          }
+          return item;
+        });
+
+        if (updated) {
+          const updatedTreatment = {
+            ...t,
+            itemCounters: newCounters,
+            verses: newCounters.flatMap((i) => i.verses || []),
+          };
+          setSelectedTreatment(updatedTreatment);
+          setActiveItemIndex(0);
+
+          const updatedList = userTreatments.map((x) =>
+            x.treatment_id === treatmentId ? updatedTreatment : x
+          );
+          setUserTreatments(updatedList);
+          persist(updatedList);
+          return;
+        }
+      }
+
       setSelectedTreatment(t);
       setActiveItemIndex(0);
     }
@@ -480,7 +627,7 @@ const Treatments = () => {
             Target: {activeItem.target} recitations
           </Typography>
 
-          {/* Arabic verses */}
+          {/* Arabic verses & Urdu Translation */}
           {activeItem.verses && activeItem.verses.length > 0 && (
             <Box
               sx={{
@@ -493,18 +640,42 @@ const Treatments = () => {
               }}
             >
               {activeItem.verses.map((v, i) => (
-                <Typography
+                <Box
                   key={i}
-                  variant="h5"
                   sx={{
-                    fontFamily: "'Amiri', serif",
-                    color: "#0d472c",
-                    lineHeight: 1.9,
-                    mb: 1,
+                    mb: 2,
+                    pb: 1.5,
+                    borderBottom:
+                      i < activeItem.verses.length - 1
+                        ? "1px dashed rgba(13, 71, 44, 0.15)"
+                        : "none",
                   }}
                 >
-                  {v.arabic}
-                </Typography>
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      fontFamily: "'Amiri', serif",
+                      color: "#0d472c",
+                      lineHeight: 2,
+                      mb: v.urdu ? 0.75 : 0,
+                    }}
+                  >
+                    {v.arabic}
+                    {v.ayah_id && typeof v.ayah_id === "number" ? ` ۝${v.ayah_id}` : ""}
+                  </Typography>
+                  {v.urdu && (
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "#4a5568",
+                        lineHeight: 1.8,
+                        fontFamily: "'Noto Nastaliq Urdu', 'Urdu Typesetting', serif",
+                      }}
+                    >
+                      {v.urdu}
+                    </Typography>
+                  )}
+                </Box>
               ))}
             </Box>
           )}

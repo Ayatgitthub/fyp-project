@@ -8,19 +8,20 @@ const databasePath = fileURLToPath(new URL("./db", import.meta.url));
 const databaseFilePlugin = {
   name: "serve-root-database-file",
   configureServer(server) {
-    server.middlewares.use(
-      "/database-file",
-      async (_request, response, next) => {
-        try {
-          const database = await readFile(databasePath);
-          response.setHeader("Content-Type", "application/octet-stream");
-          response.setHeader("Content-Length", database.length);
-          response.end(database);
-        } catch (error) {
-          next(error);
-        }
-      },
-    );
+    const handler = async (_request, response, next) => {
+      try {
+        const database = await readFile(databasePath);
+        response.setHeader("Content-Type", "application/octet-stream");
+        response.setHeader("Content-Length", database.length);
+        response.end(database);
+      } catch (error) {
+        next(error);
+      }
+    };
+
+    server.middlewares.use("/database-file", handler);
+    server.middlewares.use("/database.sqlite", handler);
+    server.middlewares.use("/quraan.sqlite", handler);
   },
 };
 

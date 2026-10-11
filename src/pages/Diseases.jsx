@@ -332,6 +332,24 @@ const Diseases = () => {
   });
   const [categories, setCategories] = useState([]);
   const [userDiseases, setUserDiseases] = useState([]);
+  const [dynamicSurahs, setDynamicSurahs] = useState(SURAHS);
+
+  // Helper to resolve surah details from dynamic DB surahs or fallback
+  const getSurahInfo = (id) => {
+    const found = dynamicSurahs.find(
+      (s) => String(s.surah_id || s.Id) === String(id)
+    );
+    if (found) return found;
+    const fallback = SURAHS.find((s) => String(s.surah_id) === String(id));
+    return (
+      fallback || {
+        surah_id: Number(id),
+        Id: Number(id),
+        EnglishName: `Surah ${id}`,
+        ArabicName: "",
+      }
+    );
+  };
 
   // ── Add Cure Dialog State ──
   const [openAddCure, setOpenAddCure] = useState(false);
@@ -400,6 +418,26 @@ const Diseases = () => {
       } catch (error) {
         console.error("Error fetching categories:", error);
       }
+
+      // Dynamically load surahs from sqlite surahs table
+      try {
+        const surahResult = db.exec(
+          "SELECT Id, surah_names, surah_Urdu_Names FROM surahs ORDER BY Id ASC"
+        );
+        if (surahResult.length > 0 && surahResult[0].values.length > 0) {
+          const fetched = surahResult[0].values.map((row) => ({
+            surah_id: Number(row[0]),
+            Id: Number(row[0]),
+            EnglishName: row[1] || `Surah ${row[0]}`,
+            ArabicName: row[2] || "",
+            surah_names: row[1] || `Surah ${row[0]}`,
+            surah_Urdu_Names: row[2] || "",
+          }));
+          setDynamicSurahs(fetched);
+        }
+      } catch (error) {
+        console.error("Error fetching surahs from DB:", error);
+      }
     }
   }, [db]);
 
@@ -448,27 +486,95 @@ const Diseases = () => {
         );
         if (found) {
           filteredData = [found];
-        } else {
-          filteredData = [
-            {
-              id: activeCat.id || Date.now(),
-              disease_id: activeCat.id || Date.now(),
-              name: activeCat.name || activeCat.title,
-              title: activeCat.title || activeCat.name,
-              value: activeCat.value || (activeCat.name ? activeCat.name.toLowerCase().replace(/\s+/g, "_") : categoryValue),
-              image: activeCat.imageUrl || activeCat.image,
-              imageUrl: activeCat.imageUrl || activeCat.image,
-              description: activeCat.description || "",
-              category: categoryValue,
-              category_id: categoryValue,
-              isCustom: true,
-              items: activeCat.items || [],
-            },
-          ];
         }
       }
 
-      setDiseaseList(filteredData);
+      // Also fetch diseases from SQLite Disease table for this Category Id
+      let dbDiseases = [];
+      if (db && activeCat && activeCat.id) {
+        try {
+          const res = db.exec("SELECT Id, CId, Name FROM Disease WHERE CId = ?", [activeCat.id]);
+          if (res.length > 0 && res[0].values.length > 0) {
+            dbDiseases = res[0].values.map(([dId, cId, dName]) => {
+              let cureItems = [];
+              let cureDesc = "";
+              let cureTitle = "";
+              try {
+                const cureRes = db.exec("SELECT Id, Description, Title FROM Cure WHERE DiseaseId = ?", [dId]);
+                if (cureRes.length > 0 && cureRes[0].values.length > 0) {
+                  cureDesc = cureRes[0].values[0][1] || "";
+                  cureTitle = cureRes[0].values[0][2] || "";
+                  const cId = cureRes[0].values[0][0];
+                  const cdRes = db.exec("SELECT Id, CuId, Count, QIdFrom, QIdTo FROM CureDetail WHERE CuId = ?", [cId]);
+                  if (cdRes.length > 0 && cdRes[0].values.length > 0) {
+                    cureItems = cdRes[0].values.map(([cdId, , count, qFrom, qTo]) => ({
+                      id: cdId,
+                      type: "surah",
+                      itemId: 1,
+                      surah_id: 1,
+                      qIdFrom: qFrom,
+                      qIdTo: qTo,
+                      ayat_from: qFrom,
+                      ayat_to: qTo,
+                      count: count || 7,
+                      target: count || 7,
+                    }));
+                  }
+                }
+              } catch (e) { }
+
+              return {
+                id: dId,
+                disease_id: dId,
+                name: dName,
+                title: dName,
+                value: dName ? dName.toLowerCase().replace(/\s+/g, "_") : categoryValue,
+                imageUrl: activeCat.imageUrl || activeCat.image || "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80",
+                description: cureDesc || "",
+                cure_title: cureTitle || "",
+                category: categoryValue,
+                category_id: categoryValue,
+                items: cureItems,
+                fromDb: true,
+              };
+            });
+          }
+        } catch (err) {
+          console.error("Error loading diseases from DB:", err);
+        }
+      }
+
+      // Merge: localStorage additions first, then DB diseases
+      const combined = [
+        ...filteredData,
+        ...dbDiseases.filter(
+          (dbD) =>
+            !filteredData.some(
+              (fd) =>
+                String(fd.id) === String(dbD.id) ||
+                (fd.name && fd.name.toLowerCase() === dbD.name.toLowerCase())
+            )
+        ),
+      ];
+
+      if (combined.length === 0 && activeCat) {
+        combined.push({
+          id: activeCat.id || Date.now(),
+          disease_id: activeCat.id || Date.now(),
+          name: activeCat.name || activeCat.title,
+          title: activeCat.title || activeCat.name,
+          value: activeCat.value || (activeCat.name ? activeCat.name.toLowerCase().replace(/\s+/g, "_") : categoryValue),
+          image: activeCat.imageUrl || activeCat.image,
+          imageUrl: activeCat.imageUrl || activeCat.image,
+          description: activeCat.description || "",
+          category: categoryValue,
+          category_id: categoryValue,
+          isCustom: true,
+          items: activeCat.items || [],
+        });
+      }
+
+      setDiseaseList(combined);
     } catch (error) {
       setDiseaseList([]);
     } finally {
@@ -578,9 +684,7 @@ const Diseases = () => {
         return;
       }
 
-      const surahObj = SURAHS.find(
-        (s) => String(s.surah_id) === String(selectedSurah)
-      );
+      const surahObj = getSurahInfo(selectedSurah);
       const sName = surahObj ? surahObj.EnglishName : `Surah ${selectedSurah}`;
 
       newEntry = {
@@ -760,12 +864,8 @@ const Diseases = () => {
   const buildTreatmentData = (diseaseName, items, title = "") => {
     const getItemName = (item) => {
       if (item.type === "surah" || !item.type || item.type === "item") {
-        const surah = SURAHS.find(
-          (entry) =>
-            String(entry.surah_id) ===
-            String(item.itemId || item.surah_id || item.surahNum)
-        );
-        if (surah) return surah.EnglishName;
+        const surah = getSurahInfo(item.itemId || item.surah_id || item.surahNum);
+        if (surah && surah.EnglishName) return surah.EnglishName;
       }
 
       if (item.type === "hadith") {
@@ -803,11 +903,9 @@ const Diseases = () => {
         }
       }
 
-      if (item.itemId) {
-        const surah = SURAHS.find(
-          (entry) => String(entry.surah_id) === String(item.itemId)
-        );
-        if (surah) return surah.EnglishName;
+      if (item.itemId || item.surah_id) {
+        const surah = getSurahInfo(item.itemId || item.surah_id);
+        if (surah && surah.EnglishName) return surah.EnglishName;
       }
 
       return `${item.type || "Surah"} ${item.itemId || ""}`.trim();
@@ -817,32 +915,70 @@ const Diseases = () => {
       const name = getItemName(item);
       let verses = [];
 
-      if (item.type === "surah") {
+      if (item.type === "surah" || !item.type || item.type === "item") {
         if (db) {
           try {
+            const sId = Number(item.itemId || item.surah_id || item.surahNum || 1);
+            const vFrom = Number(item.ayat_from || item.ayatFrom || 1);
+            const vTo = Number(item.ayat_to || item.ayatTo || 7);
             const versesResult = db.exec(
-              `SELECT VerseId, AyahText FROM Quran WHERE SuraId = ? AND VerseId >= ? AND VerseId <= ?`,
-              [
-                item.itemId || item.surah_id || item.surahNum || 1,
-                item.ayat_from || item.ayatFrom || 1,
-                item.ayat_to || item.ayatTo || 7,
-              ]
+              `SELECT VerseID, AyahText FROM Quran WHERE SuraID = ? AND VerseID >= ? AND VerseID <= ? ORDER BY VerseID ASC`,
+              [sId, vFrom, vTo]
             );
             if (versesResult.length > 0 && versesResult[0].values.length > 0) {
+              let urduMap = {};
+              try {
+                const urduRes = db.exec(
+                  `SELECT VerseID, AyahText FROM quran_urdu WHERE SuraID = ? AND VerseID >= ? AND VerseID <= ? ORDER BY VerseID ASC`,
+                  [sId, vFrom, vTo]
+                );
+                if (urduRes.length > 0 && urduRes[0].values.length > 0) {
+                  urduRes[0].values.forEach(([vId, uText]) => {
+                    urduMap[vId] = uText;
+                  });
+                }
+              } catch (e) { }
+
               verses = versesResult[0].values.map((row) => ({
                 ayah_id: row[0],
                 arabic: row[1],
+                urdu: urduMap[row[0]] || "",
               }));
+            } else if (item.qIdFrom || item.QIdFrom) {
+              const qFrom = Number(item.qIdFrom || item.QIdFrom);
+              const qTo = Number(item.qIdTo || item.QIdTo || qFrom);
+              const qRes = db.exec(
+                `SELECT VerseID, AyahText, SuraID FROM Quran WHERE ID >= ? AND ID <= ? ORDER BY ID ASC`,
+                [qFrom, qTo]
+              );
+              if (qRes.length > 0 && qRes[0].values.length > 0) {
+                verses = qRes[0].values.map((row) => ({
+                  ayah_id: row[0],
+                  arabic: row[1],
+                }));
+              }
             }
           } catch (error) {
             console.warn(`Could not load verses for ${name}:`, error);
           }
         }
+        if (verses.length === 0 && db) {
+          try {
+            const fallbackRes = db.exec(
+              `SELECT VerseID, AyahText FROM Quran WHERE SuraID = 1 AND VerseID >= 1 AND VerseID <= 7 ORDER BY VerseID ASC`
+            );
+            if (fallbackRes.length > 0 && fallbackRes[0].values.length > 0) {
+              verses = fallbackRes[0].values.map((row) => ({
+                ayah_id: row[0],
+                arabic: row[1],
+              }));
+            }
+          } catch (e) { }
+        }
         if (verses.length === 0) {
           verses = [
             {
-              ayah_id: `${name} ${item.ayat_from || item.ayatFrom || 1}-${item.ayat_to || item.ayatTo || 7
-                }`,
+              ayah_id: `${name} ${item.ayat_from || item.ayatFrom || 1}-${item.ayat_to || item.ayatTo || 7}`,
               arabic:
                 "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ ۝ وَإِذَا مَرِضْتُ فَهُوَ يَشْفِينِ",
             },
@@ -916,7 +1052,7 @@ const Diseases = () => {
         const aTo = parseInt(ayatTo);
         const sCount = parseInt(surahCount);
         if (aFrom <= aTo && sCount > 0) {
-          const surahObj = SURAHS.find((s) => String(s.surah_id) === String(selectedSurah));
+          const surahObj = getSurahInfo(selectedSurah);
           const sName = surahObj ? surahObj.EnglishName : `Surah ${selectedSurah}`;
           allItemsToSave.push({
             id: Date.now(),
@@ -1254,7 +1390,7 @@ const Diseases = () => {
       alert("Failed to start treatment. Please try again.");
     }
   };
-
+  console.log(allDiseases)
   return (
     <Box sx={{ p: 1 }}>
       <Box
@@ -1404,7 +1540,7 @@ const Diseases = () => {
                       <CardMedia
                         component="img"
                         height="180"
-                        image={disease.imageUrl || disease.image}
+                        image={disease?.imageUrl || disease?.image || disease?.imagePath}
                         alt={disease.title || disease.name}
                         sx={{
                           objectFit: "cover",
@@ -1575,11 +1711,7 @@ const Diseases = () => {
                       let name = "";
 
                       if (type === "surah") {
-                        const surah = SURAHS.find(
-                          (entry) =>
-                            String(entry.surah_id) ===
-                            String(item.itemId || item.surah_id),
-                        );
+                        const surah = getSurahInfo(item.itemId || item.surah_id);
                         name = surah?.EnglishName || `Surah ${item.itemId}`;
                       } else {
                         const table =
@@ -1619,9 +1751,7 @@ const Diseases = () => {
                     } else if (items.length === 1 || disease.surah_id) {
                       const surahId =
                         items.length === 1 ? items[0].itemId : disease.surah_id;
-                      const surah = SURAHS.find(
-                        (s) => String(s.surah_id) === String(surahId),
-                      );
+                      const surah = getSurahInfo(surahId);
                       const surahName = surah
                         ? surah.EnglishName
                         : `Surah ${surahId}`;
@@ -2148,10 +2278,10 @@ const Diseases = () => {
                       label="Select Surah"
                       onChange={(e) => setSelectedSurah(e.target.value)}
                     >
-                      {SURAHS.map((s) => (
-                        <MenuItem key={s.surah_id} value={s.surah_id}>
-                          {s.surah_id}. {s.EnglishName}{" "}
-                          {s.ArabicName ? `(${s.ArabicName})` : ""}
+                      {dynamicSurahs.map((s) => (
+                        <MenuItem key={s.surah_id || s.Id} value={s.surah_id || s.Id}>
+                          {s.surah_id || s.Id}. {s.EnglishName || s.surah_names}{" "}
+                          {s.ArabicName || s.surah_Urdu_Names ? `(${s.ArabicName || s.surah_Urdu_Names})` : ""}
                         </MenuItem>
                       ))}
                     </Select>

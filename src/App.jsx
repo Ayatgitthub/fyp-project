@@ -7,7 +7,6 @@ import Diseases from './pages/Diseases';
 import DiseaseDetail from './pages/DiseaseDetail';
 import Treatments from './pages/Treatments';
 import Logs from './pages/Logs';
-import QuranTracker from './pages/QuranTracker';
 
 import './App.css';
 
@@ -41,7 +40,6 @@ function App() {
             <Route path="diseases/:id" element={<DiseaseDetail />} />
             <Route path="treatments" element={<Treatments />} />
             <Route path="logs" element={<Logs />} />
-            <Route path="quran-tracker" element={<QuranTracker />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/welcome" replace />} />
