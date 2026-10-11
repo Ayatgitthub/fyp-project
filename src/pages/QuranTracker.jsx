@@ -1,522 +1,684 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
   TextField,
   Button,
   Grid,
-  Card,
-  CardContent,
   IconButton,
   MenuItem,
   Select,
-  InputLabel,
-  FormControl,
   Divider,
   Paper,
-  InputAdornment
+  Chip,
+  Tooltip,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import SaveIcon from '@mui/icons-material/Save';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
+import AutoStoriesIcon from '@mui/icons-material/AutoStories';
+import LoopIcon from '@mui/icons-material/Loop';
+import { useDb } from '../context/DbContext';
 
+// ─── Surah list ───────────────────────────────────────────────────────────────
 const surahs = [
-  "1. Al-Fatihah (7 ayats)",
-  "2. Al-Baqarah (286 ayats)",
-  "3. Al-Imran (200 ayats)",
-  "4. An-Nisa (176 ayats)",
-  "5. Al-Ma'idah (120 ayats)",
-  "6. Al-An'am (165 ayats)",
-  "7. Al-A'raf (206 ayats)",
-  "8. Al-Anfal (75 ayats)",
-  "9. At-Tawbah (129 ayats)",
-  "10. Yunus (109 ayats)",
-  "11. Hud (123 ayats)",
-  "12. Yusuf (111 ayats)",
-  "13. Ar-Ra'd (43 ayats)",
-  "14. Ibrahim (52 ayats)",
-  "15. Al-Hijr (99 ayats)",
-  "16. An-Nahl (128 ayats)",
-  "17. Al-Isra (111 ayats)",
-  "18. Al-Kahf (110 ayats)",
-  "19. Maryam (98 ayats)",
-  "20. Ta-Ha (135 ayats)",
-  "21. Al-Anbiya (112 ayats)",
-  "22. Al-Hajj (78 ayats)",
-  "23. Al-Mu'minun (118 ayats)",
-  "24. An-Nur (64 ayats)",
-  "25. Al-Furqan (77 ayats)",
-  "26. Ash-Shu'ara (227 ayats)",
-  "27. An-Naml (93 ayats)",
-  "28. Al-Qasas (88 ayats)",
-  "29. Al-Ankabut (69 ayats)",
-  "30. Ar-Rum (60 ayats)",
-  "31. Luqman (34 ayats)",
-  "32. As-Sajdah (30 ayats)",
-  "33. Al-Ahzab (73 ayats)",
-  "34. Saba (54 ayats)",
-  "35. Fatir (45 ayats)",
-  "36. Ya-Sin (83 ayats)",
-  "37. As-Saffat (182 ayats)",
-  "38. Sad (88 ayats)",
-  "39. Az-Zumar (75 ayats)",
-  "40. Ghafir (85 ayats)",
-  "41. Fussilat (54 ayats)",
-  "42. Ash-Shura (53 ayats)",
-  "43. Az-Zukhruf (89 ayats)",
-  "44. Ad-Dukhan (59 ayats)",
-  "45. Al-Jathiyah (37 ayats)",
-  "46. Al-Ahqaf (35 ayats)",
-  "47. Muhammad (38 ayats)",
-  "48. Al-Fath (29 ayats)",
-  "49. Al-Hujurat (18 ayats)",
-  "50. Qaf (45 ayats)",
-  "51. Ad-Dhariyat (60 ayats)",
-  "52. At-Tur (49 ayats)",
-  "53. An-Najm (62 ayats)",
-  "54. Al-Qamar (55 ayats)",
-  "55. Ar-Rahman (78 ayats)",
-  "56. Al-Waqi'ah (96 ayats)",
-  "57. Al-Hadid (29 ayats)",
-  "58. Al-Mujadila (22 ayats)",
-  "59. Al-Hashr (24 ayats)",
-  "60. Al-Mumtahanah (13 ayats)",
-  "61. As-Saff (14 ayats)",
-  "62. Al-Jumu'ah (11 ayats)",
-  "63. Al-Munafiqun (11 ayats)",
-  "64. At-Taghabun (18 ayats)",
-  "65. At-Talaq (12 ayats)",
-  "66. At-Tahrim (12 ayats)",
-  "67. Al-Mulk (30 ayats)",
-  "68. Al-Qalam (52 ayats)",
-  "69. Al-Haqqah (52 ayats)",
-  "70. Al-Ma'arij (44 ayats)",
-  "71. Nuh (28 ayats)",
-  "72. Al-Jinn (28 ayats)",
-  "73. Al-Muzzammil (20 ayats)",
-  "74. Al-Muddaththir (56 ayats)",
-  "75. Al-Qiyamah (40 ayats)",
-  "76. Al-Insan (31 ayats)",
-  "77. Al-Mursalat (50 ayats)",
-  "78. An-Naba (40 ayats)",
-  "79. An-Nazi'at (46 ayats)",
-  "80. Abasa (42 ayats)",
-  "81. At-Takwir (29 ayats)",
-  "82. Al-Infitar (19 ayats)",
-  "83. Al-Mutaffifin (36 ayats)",
-  "84. Al-Inshiqaq (25 ayats)",
-  "85. Al-Buruj (22 ayats)",
-  "86. At-Tariq (17 ayats)",
-  "87. Al-A'la (19 ayats)",
-  "88. Al-Ghashiyah (26 ayats)",
-  "89. Al-Fajr (30 ayats)",
-  "90. Al-Balad (20 ayats)",
-  "91. Ash-Shams (15 ayats)",
-  "92. Al-Layl (21 ayats)",
-  "93. Ad-Duhaa (11 ayats)",
-  "94. Ash-Sharh (8 ayats)",
-  "95. At-Tin (8 ayats)",
-  "96. Al-Alaq (19 ayats)",
-  "97. Al-Qadr (5 ayats)",
-  "98. Al-Bayyinah (8 ayats)",
-  "99. Az-Zalzalah (8 ayats)",
-  "100. Al-Adiyat (11 ayats)",
-  "101. Al-Qari'ah (11 ayats)",
-  "102. At-Takathur (8 ayats)",
-  "103. Al-Asr (3 ayats)",
-  "104. Al-Humazah (9 ayats)",
-  "105. Al-Fil (5 ayats)",
-  "106. Quraysh (4 ayats)",
-  "107. Al-Ma'un (7 ayats)",
-  "108. Al-Kawthar (3 ayats)",
-  "109. Al-Kafirun (6 ayats)",
-  "110. An-Nasr (3 ayats)",
-  "111. Al-Masad (5 ayats)",
-  "112. Al-Ikhlas (4 ayats)",
-  "113. Al-Falaq (5 ayats)",
-  "114. An-Nas (6 ayats)"
+  { num: 1, name: 'Al-Fatihah', ayats: 7 },
+  { num: 2, name: 'Al-Baqarah', ayats: 286 },
+  { num: 3, name: 'Al-Imran', ayats: 200 },
+  { num: 4, name: "An-Nisa", ayats: 176 },
+  { num: 5, name: "Al-Ma'idah", ayats: 120 },
+  { num: 6, name: "Al-An'am", ayats: 165 },
+  { num: 7, name: "Al-A'raf", ayats: 206 },
+  { num: 8, name: 'Al-Anfal', ayats: 75 },
+  { num: 9, name: 'At-Tawbah', ayats: 129 },
+  { num: 10, name: 'Yunus', ayats: 109 },
+  { num: 11, name: 'Hud', ayats: 123 },
+  { num: 12, name: 'Yusuf', ayats: 111 },
+  { num: 13, name: "Ar-Ra'd", ayats: 43 },
+  { num: 14, name: 'Ibrahim', ayats: 52 },
+  { num: 15, name: 'Al-Hijr', ayats: 99 },
+  { num: 16, name: 'An-Nahl', ayats: 128 },
+  { num: 17, name: "Al-Isra", ayats: 111 },
+  { num: 18, name: 'Al-Kahf', ayats: 110 },
+  { num: 19, name: 'Maryam', ayats: 98 },
+  { num: 20, name: 'Ta-Ha', ayats: 135 },
+  { num: 21, name: 'Al-Anbiya', ayats: 112 },
+  { num: 22, name: 'Al-Hajj', ayats: 78 },
+  { num: 23, name: "Al-Mu'minun", ayats: 118 },
+  { num: 24, name: 'An-Nur', ayats: 64 },
+  { num: 25, name: 'Al-Furqan', ayats: 77 },
+  { num: 26, name: "Ash-Shu'ara", ayats: 227 },
+  { num: 27, name: 'An-Naml', ayats: 93 },
+  { num: 28, name: 'Al-Qasas', ayats: 88 },
+  { num: 29, name: 'Al-Ankabut', ayats: 69 },
+  { num: 30, name: 'Ar-Rum', ayats: 60 },
+  { num: 31, name: 'Luqman', ayats: 34 },
+  { num: 32, name: 'As-Sajdah', ayats: 30 },
+  { num: 33, name: 'Al-Ahzab', ayats: 73 },
+  { num: 34, name: 'Saba', ayats: 54 },
+  { num: 35, name: 'Fatir', ayats: 45 },
+  { num: 36, name: 'Ya-Sin', ayats: 83 },
+  { num: 37, name: 'As-Saffat', ayats: 182 },
+  { num: 38, name: 'Sad', ayats: 88 },
+  { num: 39, name: 'Az-Zumar', ayats: 75 },
+  { num: 40, name: 'Ghafir', ayats: 85 },
+  { num: 41, name: 'Fussilat', ayats: 54 },
+  { num: 42, name: 'Ash-Shura', ayats: 53 },
+  { num: 43, name: 'Az-Zukhruf', ayats: 89 },
+  { num: 44, name: 'Ad-Dukhan', ayats: 59 },
+  { num: 45, name: 'Al-Jathiyah', ayats: 37 },
+  { num: 46, name: 'Al-Ahqaf', ayats: 35 },
+  { num: 47, name: 'Muhammad', ayats: 38 },
+  { num: 48, name: 'Al-Fath', ayats: 29 },
+  { num: 49, name: 'Al-Hujurat', ayats: 18 },
+  { num: 50, name: 'Qaf', ayats: 45 },
+  { num: 51, name: 'Ad-Dhariyat', ayats: 60 },
+  { num: 52, name: 'At-Tur', ayats: 49 },
+  { num: 53, name: 'An-Najm', ayats: 62 },
+  { num: 54, name: 'Al-Qamar', ayats: 55 },
+  { num: 55, name: 'Ar-Rahman', ayats: 78 },
+  { num: 56, name: "Al-Waqi'ah", ayats: 96 },
+  { num: 57, name: 'Al-Hadid', ayats: 29 },
+  { num: 58, name: 'Al-Mujadila', ayats: 22 },
+  { num: 59, name: 'Al-Hashr', ayats: 24 },
+  { num: 60, name: 'Al-Mumtahanah', ayats: 13 },
+  { num: 61, name: 'As-Saff', ayats: 14 },
+  { num: 62, name: "Al-Jumu'ah", ayats: 11 },
+  { num: 63, name: 'Al-Munafiqun', ayats: 11 },
+  { num: 64, name: 'At-Taghabun', ayats: 18 },
+  { num: 65, name: 'At-Talaq', ayats: 12 },
+  { num: 66, name: 'At-Tahrim', ayats: 12 },
+  { num: 67, name: 'Al-Mulk', ayats: 30 },
+  { num: 68, name: 'Al-Qalam', ayats: 52 },
+  { num: 69, name: 'Al-Haqqah', ayats: 52 },
+  { num: 70, name: "Al-Ma'arij", ayats: 44 },
+  { num: 71, name: 'Nuh', ayats: 28 },
+  { num: 72, name: 'Al-Jinn', ayats: 28 },
+  { num: 73, name: 'Al-Muzzammil', ayats: 20 },
+  { num: 74, name: 'Al-Muddaththir', ayats: 56 },
+  { num: 75, name: 'Al-Qiyamah', ayats: 40 },
+  { num: 76, name: 'Al-Insan', ayats: 31 },
+  { num: 77, name: 'Al-Mursalat', ayats: 50 },
+  { num: 78, name: "An-Naba", ayats: 40 },
+  { num: 79, name: "An-Nazi'at", ayats: 46 },
+  { num: 80, name: 'Abasa', ayats: 42 },
+  { num: 81, name: 'At-Takwir', ayats: 29 },
+  { num: 82, name: 'Al-Infitar', ayats: 19 },
+  { num: 83, name: 'Al-Mutaffifin', ayats: 36 },
+  { num: 84, name: 'Al-Inshiqaq', ayats: 25 },
+  { num: 85, name: 'Al-Buruj', ayats: 22 },
+  { num: 86, name: 'At-Tariq', ayats: 17 },
+  { num: 87, name: "Al-A'la", ayats: 19 },
+  { num: 88, name: 'Al-Ghashiyah', ayats: 26 },
+  { num: 89, name: 'Al-Fajr', ayats: 30 },
+  { num: 90, name: 'Al-Balad', ayats: 20 },
+  { num: 91, name: 'Ash-Shams', ayats: 15 },
+  { num: 92, name: 'Al-Layl', ayats: 21 },
+  { num: 93, name: 'Ad-Duhaa', ayats: 11 },
+  { num: 94, name: 'Ash-Sharh', ayats: 8 },
+  { num: 95, name: 'At-Tin', ayats: 8 },
+  { num: 96, name: 'Al-Alaq', ayats: 19 },
+  { num: 97, name: 'Al-Qadr', ayats: 5 },
+  { num: 98, name: 'Al-Bayyinah', ayats: 8 },
+  { num: 99, name: 'Az-Zalzalah', ayats: 8 },
+  { num: 100, name: 'Al-Adiyat', ayats: 11 },
+  { num: 101, name: "Al-Qari'ah", ayats: 11 },
+  { num: 102, name: 'At-Takathur', ayats: 8 },
+  { num: 103, name: 'Al-Asr', ayats: 3 },
+  { num: 104, name: 'Al-Humazah', ayats: 9 },
+  { num: 105, name: 'Al-Fil', ayats: 5 },
+  { num: 106, name: 'Quraysh', ayats: 4 },
+  { num: 107, name: "Al-Ma'un", ayats: 7 },
+  { num: 108, name: 'Al-Kawthar', ayats: 3 },
+  { num: 109, name: 'Al-Kafirun', ayats: 6 },
+  { num: 110, name: 'An-Nasr', ayats: 3 },
+  { num: 111, name: 'Al-Masad', ayats: 5 },
+  { num: 112, name: 'Al-Ikhlas', ayats: 4 },
+  { num: 113, name: 'Al-Falaq', ayats: 5 },
+  { num: 114, name: 'An-Nas', ayats: 6 },
 ];
 
+// ─── Colour tokens ────────────────────────────────────────────────────────────
+const C = {
+  green: '#1b5e20',
+  greenDark: '#114015',
+  greenLight: '#e8f5e9',
+  greenMid: '#2e7d32',
+  yellow: '#e3c260',
+  bg: '#f4f7f4',
+  white: '#ffffff',
+  border: '#dde8dd',
+  textDark: '#1a1a1a',
+  textMid: '#4a5e4a',
+  textGrey: '#7a8b83',
+  hadithBlue: '#1565c0',
+  hadithBg: '#e3f2fd',
+  daroodPurple: '#6a1b9a',
+  daroodBg: '#f3e5f5',
+};
+
+// ─── Reusable style helpers ───────────────────────────────────────────────────
+const labelSx = {
+  fontSize: '0.72rem',
+  fontWeight: 700,
+  color: C.textMid,
+  textTransform: 'uppercase',
+  letterSpacing: '0.6px',
+  mb: 0.5,
+};
+
+const inputSx = {
+  '& .MuiOutlinedInput-root': {
+    backgroundColor: C.white,
+    borderRadius: '10px',
+    '& fieldset': { borderColor: C.border },
+    '&:hover fieldset': { borderColor: C.green },
+    '&.Mui-focused fieldset': { borderColor: C.green },
+  },
+  '& .MuiInputBase-input': { padding: '11px 14px', color: C.textDark, fontSize: '0.9rem' },
+};
+
+const selectSx = {
+  backgroundColor: C.white,
+  borderRadius: '10px',
+  '.MuiOutlinedInput-notchedOutline': { borderColor: C.border },
+  '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: C.green },
+  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: C.green },
+  '.MuiSelect-select': { padding: '11px 14px', fontSize: '0.9rem', color: C.textDark },
+};
+
+// ─── Source badge colours ─────────────────────────────────────────────────────
+const sourceColor = {
+  Surah: { bg: C.greenLight, text: C.green },
+  Hadith: { bg: C.hadithBg, text: C.hadithBlue },
+  Darood: { bg: C.daroodBg, text: C.daroodPurple },
+};
+
+// ─── Main component ───────────────────────────────────────────────────────────
 const QuranTracker = () => {
+  const { db, saveTreatment, loadTreatments, deleteTreatment } = useDb();
+
+  // ── form state ──
   const [diseaseName, setDiseaseName] = useState('');
+  const [source, setSource] = useState('');
+
+  // surah form
   const [selectedSurah, setSelectedSurah] = useState('');
   const [ayatFrom, setAyatFrom] = useState('');
   const [ayatTo, setAyatTo] = useState('');
-  const [count, setCount] = useState('');
-  const [cards, setCards] = useState([]);
+  const [surahCount, setSurahCount] = useState('');
+  const [pendingSurahs, setPendingSurahs] = useState([]); // surahs queued before save
 
-  const handleAddCard = () => {
-    if (!selectedSurah || !ayatFrom || !ayatTo || !count || parseInt(count) <= 0) {
-      alert("Please fill all recitation details correctly.");
-      return;
+  // hadith form
+  const [hadithBook, setHadithBook] = useState('');
+  const [hadithNumber, setHadithNumber] = useState('');
+
+  // darood form
+  const [daroodName, setDaroodName] = useState('');
+  const [daroodNumber, setDaroodNumber] = useState('');
+
+  // saved cards (each card = one full treatment entry)
+  const [savedCards, setSavedCards] = useState([]);
+
+  // Load treatments from database on component mount
+  useEffect(() => {
+    if (db) {
+      const treatments = loadTreatments();
+      setSavedCards(treatments);
     }
+  }, [db, loadTreatments]);
 
-    if (parseInt(ayatFrom) > parseInt(ayatTo)) {
-      alert("Ayat From cannot be greater than Ayat To.");
-      return;
-    }
+  // ── add a Surah to the pending list ──
+  const handleAddSurah = () => {
+    if (!selectedSurah) { alert('Please select a Surah.'); return; }
+    if (!ayatFrom || !ayatTo) { alert('Please fill Ayat From and Ayat To.'); return; }
+    if (parseInt(ayatFrom) > parseInt(ayatTo)) { alert('Ayat From cannot exceed Ayat To.'); return; }
+    if (!surahCount || parseInt(surahCount) <= 0) { alert('Please enter a valid Count.'); return; }
 
-    const newCard = {
-      id: Date.now(),
-      surah: selectedSurah,
-      ayatFrom: parseInt(ayatFrom),
-      ayatTo: parseInt(ayatTo),
-      count: parseInt(count),
-    };
-
-    setCards([...cards, newCard]);
+    const surahObj = surahs.find(s => s.num === parseInt(selectedSurah));
+    setPendingSurahs(prev => [
+      ...prev,
+      { id: Date.now(), surahNum: surahObj.num, surahName: surahObj.name, ayatFrom: parseInt(ayatFrom), ayatTo: parseInt(ayatTo), count: parseInt(surahCount) },
+    ]);
+    // reset surah fields
     setSelectedSurah('');
     setAyatFrom('');
     setAyatTo('');
-    setCount('');
+    setSurahCount('');
+  };
+
+  const handleRemovePendingSurah = (id) =>
+    setPendingSurahs(prev => prev.filter(s => s.id !== id));
+
+  // ── save the whole treatment card ──
+  const handleSave = () => {
+    if (!diseaseName.trim()) { alert('Please enter a Title / Disease Name.'); return; }
+    if (!source) { alert('Please select a Source.'); return; }
+
+    if (source === 'Surah' && pendingSurahs.length === 0) {
+      alert('Please add at least one Surah using the + button.'); return;
+    }
+    if (source === 'Hadith' && (!hadithBook.trim() || !hadithNumber.trim())) {
+      alert('Please fill in Hadith Book Name and Hadith Number.'); return;
+    }
+    if (source === 'Darood' && (!daroodName.trim() || !daroodNumber.trim())) {
+      alert('Please fill in Darood Name and Darood Number.'); return;
+    }
+
+    const newCard = {
+      diseaseName: diseaseName.trim(),
+      source,
+      surahs: source === 'Surah' ? [...pendingSurahs] : [],
+      hadithBook: source === 'Hadith' ? hadithBook.trim() : '',
+      hadithNumber: source === 'Hadith' ? hadithNumber.trim() : '',
+      daroodName: source === 'Darood' ? daroodName.trim() : '',
+      daroodNumber: source === 'Darood' ? daroodNumber.trim() : '',
+    };
+
+    // Save to database
+    saveTreatment(newCard);
+
+    // Reload from database to get the new ID
+    const updatedCards = loadTreatments();
+    setSavedCards(updatedCards);
+
+    // reset all
+    setDiseaseName('');
+    setSource('');
+    setPendingSurahs([]);
+    setHadithBook('');
+    setHadithNumber('');
+    setDaroodName('');
+    setDaroodNumber('');
+
+    alert(`Treatment for "${newCard.diseaseName}" saved successfully!`);
   };
 
   const handleRemoveCard = (id) => {
-    setCards(cards.filter(card => card.id !== id));
+    deleteTreatment(id);
+    setSavedCards(prev => prev.filter(c => c.id !== id));
   };
 
-  const handleSave = () => {
-    if (!diseaseName) {
-      alert("Please enter a title.");
-      return;
-    }
-    if (cards.length === 0) {
-      alert("Please add at least one recitation.");
-      return;
-    }
-    
-    console.log("Saving Tracker Entry:", {
-      diseaseName,
-      recitations: cards
-    });
-    
-    alert("Quran Tracker entry saved successfully!");
-    setDiseaseName('');
-    setCards([]);
-  };
+  // ── section header ──
+  const SectionHeader = ({ children }) => (
+    <Typography sx={{
+      fontWeight: 800, fontSize: '0.75rem', letterSpacing: '1.2px',
+      color: C.textMid, textTransform: 'uppercase',
+      borderLeft: `3px solid ${C.yellow}`, pl: 1.5, mb: 2, mt: 2,
+    }}>
+      {children}
+    </Typography>
+  );
 
-
-  // Custom styling classes
-  const colors = {
-    primaryGreen: '#1b5e20',
-    lightBg: '#f6f9f6',
-    yellowAccent: '#e3c260',
-    textGrey: '#7a8b83',
-    inputBg: '#ffffff',
-    borderLight: '#e0e6e2'
-  };
-
-  const sectionHeaderStyle = {
-    fontWeight: 'bold', 
-    color: 'black', 
-    fontSize: '0.85rem', 
-    letterSpacing: '1px',
-    borderLeft: `3px solid ${colors.yellowAccent}`,
-    paddingLeft: '10px',
-    mb: 2,
-    mt: 3,
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  };
-
-  const inputLabelStyle = {
-    fontSize: '0.75rem',
-    fontWeight: 'bold',
-    color: 'black',
-    mb: 0.5,
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px'
-  };
-
-  const textFieldSx = {
-    '& .MuiOutlinedInput-root': {
-      backgroundColor: colors.inputBg,
-      borderRadius: '12px',
-      '& fieldset': {
-        borderColor: colors.borderLight,
-      },
-      '&:hover fieldset': {
-        borderColor: colors.primaryGreen,
-      },
-      '&.Mui-focused fieldset': {
-        borderColor: colors.primaryGreen,
-      }
-    },
-    '& .MuiInputBase-input': {
-      padding: '12px 16px',
-      color: 'black'
-    }
-  };
+  // ── label ──
+  const Label = ({ children }) => <Typography sx={labelSx}>{children}</Typography>;
 
   return (
-    <Box sx={{ 
-      height: '100%',
-      display: 'flex', 
-      flexDirection: 'column',
-      fontFamily: "'Inter', sans-serif",
-      overflow: 'hidden',
-    }}>
-      
-      {/* Header Banner */}
-      <Box sx={{ 
-        backgroundColor: colors.primaryGreen,
-        py: 3,
-        px: 4,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexShrink: 0,
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif", overflow: 'hidden', backgroundColor: C.bg }}>
+
+      {/* ── Header ─────────────────────────────────────────────────── */}
+      <Box sx={{
+        background: `linear-gradient(135deg, ${C.greenDark} 0%, ${C.green} 100%)`,
+        py: 2.5, px: 4,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexShrink: 0, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
       }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'white' }}>
-          <MenuBookIcon sx={{ fontSize: 32 }} />
+          <MenuBookIcon sx={{ fontSize: 34 }} />
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: 'white', lineHeight: 1.2 }}>
-              Quran Tracker
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.82rem' }}>
-              Daily Recitation Log
-            </Typography>
+            <Typography variant="h5" sx={{ fontWeight: 800, color: 'white', lineHeight: 1.1 }}>Quran Tracker</Typography>
+            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.72)', fontSize: '0.8rem' }}>Islamic Treatment Prescription Builder</Typography>
           </Box>
         </Box>
-
-        {/* Bismillah */}
-        <Typography variant="h6" sx={{ fontFamily: "'Amiri', serif", color: 'white', opacity: 0.9 }}>
+        <Typography sx={{ fontFamily: "'Amiri', serif", color: 'white', opacity: 0.88, fontSize: '1.15rem' }}>
           بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
         </Typography>
       </Box>
 
-      {/* Main Content Area */}
-      <Box sx={{ 
-        backgroundColor: colors.lightBg, 
-        flexGrow: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
+      {/* ── Scrollable body ────────────────────────────────────────── */}
+      <Box sx={{ flexGrow: 1, overflowY: 'auto', p: { xs: 2, md: 3.5 } }}>
+        <Grid container spacing={3}>
 
-        {/* Scrollable Content + Save button at bottom */}
-        <Box sx={{ flexGrow: 1, overflowY: 'auto', p: 4, pb: 2 }}>
+          {/* ══ LEFT — Form ══════════════════════════════════════════ */}
+          <Grid item xs={12} md={5}>
+            <Paper elevation={0} sx={{
+              borderRadius: '20px', p: 3,
+              backgroundColor: C.white, border: `1px solid ${C.border}`,
+              boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
+            }}>
 
-          {/* Two-column layout */}
-          <Grid container spacing={3} sx={{ height: '100%' }}>
-            
-            {/* Left Column - Form */}
-            <Grid item xs={12} md={5}>
-              <Paper elevation={0} sx={{
-                borderRadius: '20px',
-                p: 3,
-                backgroundColor: 'white',
-                border: `1px solid ${colors.borderLight}`,
-                height: '100%',
-              }}>
-                <Typography sx={sectionHeaderStyle}>
-                  ADD NEW ENTRY
-                </Typography>
+              <SectionHeader>Add New Entry</SectionHeader>
 
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-                  <Box>
-                    <Typography sx={inputLabelStyle}>Disease Name</Typography>
-                    <TextField
-                      fullWidth
-                      placeholder="e.g. Fever"
-                      value={diseaseName}
-                      onChange={(e) => setDiseaseName(e.target.value)}
-                      sx={textFieldSx}
-                    />
-                  </Box>
+              {/* Title / Disease Name */}
+              <Box sx={{ mb: 2 }}>
+                <Label>Title / Disease Name</Label>
+                <TextField fullWidth placeholder="e.g. Fever, Headache…"
+                  value={diseaseName} onChange={e => setDiseaseName(e.target.value)} sx={inputSx} />
+              </Box>
 
-                  <Box>
-                    <Typography sx={inputLabelStyle}>Surah</Typography>
-                    <Select
-                      fullWidth
-                      displayEmpty
-                      value={selectedSurah}
-                      onChange={(e) => setSelectedSurah(e.target.value)}
-                      sx={{
-                        backgroundColor: colors.inputBg,
-                        borderRadius: '12px',
-                        '.MuiOutlinedInput-notchedOutline': { borderColor: colors.borderLight },
-                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: colors.primaryGreen },
-                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: colors.primaryGreen },
-                        '.MuiSelect-select': { padding: '12px 16px' }
-                      }}
-                    >
+              {/* Source Dropdown */}
+              <Box sx={{ mb: 2 }}>
+                <Label>Source</Label>
+                <Select fullWidth displayEmpty value={source}
+                  onChange={e => { setSource(e.target.value); setPendingSurahs([]); }} sx={selectSx}>
+                  <MenuItem value="" disabled>Select Source</MenuItem>
+                  <MenuItem value="Surah">📖 Surah</MenuItem>
+                  <MenuItem value="Hadith">📚 Hadith</MenuItem>
+                  <MenuItem value="Darood">✨ Darood</MenuItem>
+                </Select>
+              </Box>
+
+              {/* ── SURAH fields ── */}
+              {source === 'Surah' && (
+                <Box sx={{
+                  border: `1px solid ${C.border}`, borderRadius: '14px',
+                  p: 2, mb: 2, background: C.greenLight,
+                }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: C.green, mb: 1.5 }}>
+                    📖 Surah Selection
+                  </Typography>
+
+                  {/* Surah dropdown */}
+                  <Box sx={{ mb: 1.5 }}>
+                    <Label>Surah</Label>
+                    <Select fullWidth displayEmpty value={selectedSurah}
+                      onChange={e => setSelectedSurah(e.target.value)} sx={selectSx}>
                       <MenuItem value="" disabled>Select Surah</MenuItem>
-                      {surahs.map((surah, idx) => (
-                        <MenuItem key={idx} value={surah}>{surah}</MenuItem>
+                      {surahs.map(s => (
+                        <MenuItem key={s.num} value={s.num}>
+                          {s.num}. {s.name} ({s.ayats} ayats)
+                        </MenuItem>
                       ))}
                     </Select>
                   </Box>
 
-                  <Grid container spacing={2}>
+                  {/* Ayat From / To */}
+                  <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
                     <Grid item xs={6}>
-                      <Typography sx={inputLabelStyle}>Ayat From</Typography>
-                      <TextField
-                        fullWidth
-                        type="number"
-                        placeholder="1"
-                        value={ayatFrom}
-                        onChange={(e) => setAyatFrom(e.target.value)}
-                        sx={textFieldSx}
-                      />
+                      <Label>Ayat From</Label>
+                      <TextField fullWidth type="number" placeholder="1"
+                        value={ayatFrom} onChange={e => setAyatFrom(e.target.value)} sx={inputSx} />
                     </Grid>
                     <Grid item xs={6}>
-                      <Typography sx={inputLabelStyle}>Ayat To</Typography>
-                      <TextField
-                        fullWidth
-                        type="number"
-                        placeholder="1"
-                        value={ayatTo}
-                        onChange={(e) => setAyatTo(e.target.value)}
-                        sx={textFieldSx}
-                      />
+                      <Label>Ayat To</Label>
+                      <TextField fullWidth type="number" placeholder="7"
+                        value={ayatTo} onChange={e => setAyatTo(e.target.value)} sx={inputSx} />
                     </Grid>
                   </Grid>
 
+                  {/* Count + Add button */}
                   <Box>
-                    <Typography sx={inputLabelStyle}>Count (Times to Recite)</Typography>
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                      <TextField
-                        fullWidth
-                        type="number"
-                        placeholder="e.g. 3"
-                        value={count}
-                        onChange={(e) => setCount(e.target.value)}
-                        sx={textFieldSx}
-                      />
-                      <IconButton 
-                        onClick={handleAddCard}
-                        sx={{ 
-                          backgroundColor: colors.primaryGreen, 
-                          color: 'white',
-                          width: '50px',
-                          height: '50px',
-                          flexShrink: 0,
-                          '&:hover': { backgroundColor: '#114015' }
-                        }}
-                      >
-                        <AddIcon />
-                      </IconButton>
+                    <Label>Count (Times to Recite)</Label>
+                    <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+                      <TextField fullWidth type="number" placeholder="e.g. 3"
+                        value={surahCount} onChange={e => setSurahCount(e.target.value)} sx={inputSx} />
+                      <Tooltip title="Add this Surah">
+                        <IconButton onClick={handleAddSurah} sx={{
+                          backgroundColor: C.green, color: 'white',
+                          width: 46, height: 46, flexShrink: 0, borderRadius: '12px',
+                          '&:hover': { backgroundColor: C.greenDark },
+                          boxShadow: '0 2px 8px rgba(27,94,32,0.4)',
+                        }}>
+                          <AddIcon />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                   </Box>
 
-                  <Button 
-                    variant="contained" 
-                    startIcon={<SaveIcon />}
-                    onClick={handleSave}
-                    fullWidth
-                    sx={{ 
-                      backgroundColor: '#114015', 
-                      color: 'white',
-                      fontWeight: 'bold',
-                      borderRadius: '12px',
-                      textTransform: 'uppercase',
-                      py: 1.5,
-                      mt: 1,
-                      '&:hover': { backgroundColor: colors.primaryGreen }
-                    }}
-                  >
-                    Save Entry
-                  </Button>
-                </Box>
-              </Paper>
-            </Grid>
-
-            {/* Right Column - Cards */}
-            <Grid item xs={12} md={7}>
-              <Box>
-                <Typography sx={{ ...sectionHeaderStyle, mt: 0 }}>
-                  <span>RECITATION CARDS</span>
-                  <Box sx={{ 
-                    backgroundColor: colors.primaryGreen, 
-                    color: 'white', 
-                    px: 1.5, 
-                    py: 0.3, 
-                    borderRadius: '20px',
-                    fontSize: '0.75rem',
-                    fontWeight: 'bold'
-                  }}>
-                    {cards.length} {cards.length === 1 ? 'entry' : 'entries'}
-                  </Box>
-                </Typography>
-
-                {cards.length === 0 ? (
-                  <Paper elevation={0} sx={{ 
-                    backgroundColor: 'white', 
-                    borderRadius: '20px', 
-                    p: 6, 
-                    textAlign: 'center',
-                    border: `1px solid ${colors.borderLight}`
-                  }}>
-                    <Typography sx={{ fontSize: '52px', mb: 2 }}>📜</Typography>
-                    <Typography variant="body1" sx={{ color: colors.textGrey, fontWeight: 500 }}>
-                      No recitations added yet.
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: colors.textGrey, mt: 0.5 }}>
-                      Fill the form on the left and press + to add a card.
-                    </Typography>
-                  </Paper>
-                ) : (
-                  <Grid container spacing={2}>
-                    {cards.map((card) => (
-                      <Grid item xs={12} sm={6} key={card.id}>
-                        <Paper elevation={0} sx={{ 
-                          p: 2.5, 
-                          borderRadius: '16px', 
-                          backgroundColor: 'white',
-                          border: `1px solid ${colors.borderLight}`,
-                          position: 'relative',
-                          transition: 'box-shadow 0.2s ease',
-                          '&:hover': { boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }
+                  {/* Pending surahs (queued for this treatment) */}
+                  {pendingSurahs.length > 0 && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: C.textMid, mb: 1, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Added Surahs ({pendingSurahs.length})
+                      </Typography>
+                      {pendingSurahs.map(ps => (
+                        <Box key={ps.id} sx={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          backgroundColor: C.white, border: `1px solid ${C.border}`,
+                          borderRadius: '10px', px: 1.5, py: 0.8, mb: 0.8,
                         }}>
-                          <Box sx={{ 
-                            width: 6, height: '100%', 
-                            backgroundColor: colors.primaryGreen,
-                            position: 'absolute', left: 0, top: 0,
-                            borderTopLeftRadius: '16px',
-                            borderBottomLeftRadius: '16px',
-                          }} />
-                          <Box sx={{ pl: 1 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: 'black', fontSize: '0.9rem' }}>
-                              {card.surah}
+                          <Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: C.textDark }}>
+                              {ps.surahNum}. {ps.surahName}
                             </Typography>
-                            <Typography variant="body2" sx={{ color: colors.textGrey, mt: 0.5 }}>
-                              Ayat {card.ayatFrom} → {card.ayatTo}
+                            <Typography sx={{ fontSize: '0.75rem', color: C.textGrey }}>
+                              Ayat {ps.ayatFrom}–{ps.ayatTo} &nbsp;·&nbsp; 🔁 {ps.count}×
                             </Typography>
-                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 1 }}>
-                              <Box sx={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                backgroundColor: `${colors.primaryGreen}18`,
-                                color: colors.primaryGreen,
-                                px: 1.5, py: 0.3,
-                                borderRadius: '20px',
-                                fontSize: '0.75rem',
-                                fontWeight: 'bold'
-                              }}>
-                                🔁 {card.count}x
-                              </Box>
-                              <IconButton 
-                                onClick={() => handleRemoveCard(card.id)}
-                                size="small"
-                                sx={{ color: '#ff5252', '&:hover': { backgroundColor: '#ff52521a' } }}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
                           </Box>
-                        </Paper>
-                      </Grid>
-                    ))}
-                  </Grid>
-                )}
-              </Box>
-            </Grid>
+                          <IconButton size="small" onClick={() => handleRemovePendingSurah(ps.id)}
+                            sx={{ color: '#e53935', '&:hover': { backgroundColor: '#ffebee' } }}>
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              )}
 
+              {/* ── HADITH fields ── */}
+              {source === 'Hadith' && (
+                <Box sx={{
+                  border: `1px solid #90caf9`, borderRadius: '14px',
+                  p: 2, mb: 2, background: C.hadithBg,
+                }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: C.hadithBlue, mb: 1.5 }}>
+                    📚 Hadith Details
+                  </Typography>
+                  <Box sx={{ mb: 1.5 }}>
+                    <Label>Hadith Book Name</Label>
+                    <TextField fullWidth placeholder="e.g. Sahih Bukhari"
+                      value={hadithBook} onChange={e => setHadithBook(e.target.value)} sx={inputSx} />
+                  </Box>
+                  <Box>
+                    <Label>Hadith Number</Label>
+                    <TextField fullWidth placeholder="e.g. 1234"
+                      value={hadithNumber} onChange={e => setHadithNumber(e.target.value)} sx={inputSx} />
+                  </Box>
+                </Box>
+              )}
+
+              {/* ── DAROOD fields ── */}
+              {source === 'Darood' && (
+                <Box sx={{
+                  border: `1px solid #ce93d8`, borderRadius: '14px',
+                  p: 2, mb: 2, background: C.daroodBg,
+                }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: C.daroodPurple, mb: 1.5 }}>
+                    ✨ Darood Details
+                  </Typography>
+                  <Box sx={{ mb: 1.5 }}>
+                    <Label>Darood Name</Label>
+                    <TextField fullWidth placeholder="e.g. Darood Ibrahimi"
+                      value={daroodName} onChange={e => setDaroodName(e.target.value)} sx={inputSx} />
+                  </Box>
+                  <Box>
+                    <Label>Darood Number (Count)</Label>
+                    <TextField fullWidth placeholder="e.g. 100"
+                      value={daroodNumber} onChange={e => setDaroodNumber(e.target.value)} sx={inputSx} />
+                  </Box>
+                </Box>
+              )}
+
+              {/* Save button */}
+              <Button fullWidth variant="contained" startIcon={<SaveIcon />}
+                onClick={handleSave}
+                sx={{
+                  mt: 1, py: 1.4, borderRadius: '12px',
+                  background: `linear-gradient(135deg, ${C.greenDark}, ${C.greenMid})`,
+                  fontWeight: 700, fontSize: '0.88rem', textTransform: 'uppercase',
+                  letterSpacing: '1px', boxShadow: '0 3px 12px rgba(27,94,32,0.4)',
+                  '&:hover': { background: `linear-gradient(135deg, #0a2e0d, ${C.green})` },
+                }}>
+                Save Treatment
+              </Button>
+            </Paper>
           </Grid>
-        </Box>
+
+          {/* ══ RIGHT — Recite Cards ══════════════════════════════════ */}
+          <Grid item xs={12} md={7}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography sx={{
+                fontWeight: 800, fontSize: '0.75rem', letterSpacing: '1.2px',
+                color: C.textMid, textTransform: 'uppercase',
+                borderLeft: `3px solid ${C.yellow}`, pl: 1.5,
+              }}>
+                Recite Cards
+              </Typography>
+              <Box sx={{
+                backgroundColor: C.green, color: 'white',
+                px: 1.5, py: 0.3, borderRadius: '20px', fontSize: '0.72rem', fontWeight: 700,
+              }}>
+                {savedCards.length} {savedCards.length === 1 ? 'entry' : 'entries'}
+              </Box>
+            </Box>
+
+            {savedCards.length === 0 ? (
+              <Paper elevation={0} sx={{
+                backgroundColor: C.white, borderRadius: '20px', p: 6,
+                textAlign: 'center', border: `1px dashed ${C.border}`,
+              }}>
+                <Typography sx={{ fontSize: '52px', mb: 1.5 }}>📜</Typography>
+                <Typography variant="body1" sx={{ color: C.textGrey, fontWeight: 600 }}>
+                  No treatments saved yet.
+                </Typography>
+                <Typography variant="body2" sx={{ color: C.textGrey, mt: 0.5, fontSize: '0.82rem' }}>
+                  Fill the form and press Save Treatment to create a card.
+                </Typography>
+              </Paper>
+            ) : (
+              <Grid container spacing={2}>
+                {savedCards.map(card => {
+                  const sc = sourceColor[card.source] || sourceColor.Surah;
+                  return (
+                    <Grid item xs={12} key={card.id}>
+                      <Paper elevation={0} sx={{
+                        borderRadius: '16px', backgroundColor: C.white,
+                        border: `1px solid ${C.border}`,
+                        overflow: 'hidden',
+                        transition: 'box-shadow 0.2s',
+                        '&:hover': { boxShadow: '0 6px 24px rgba(0,0,0,0.09)' },
+                      }}>
+                        {/* Card header bar */}
+                        <Box sx={{
+                          background: `linear-gradient(135deg, ${C.greenDark} 0%, ${C.greenMid} 100%)`,
+                          px: 2.5, py: 1.5,
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            <AutoStoriesIcon sx={{ color: 'white', fontSize: 20 }} />
+                            <Typography sx={{ fontWeight: 700, color: 'white', fontSize: '1rem' }}>
+                              {card.diseaseName}
+                            </Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Chip label={card.source} size="small"
+                              sx={{ backgroundColor: sc.bg, color: sc.text, fontWeight: 700, fontSize: '0.7rem' }} />
+                            <IconButton size="small" onClick={() => handleRemoveCard(card.id)}
+                              sx={{ color: 'rgba(255,255,255,0.75)', '&:hover': { color: '#ff7070', backgroundColor: 'rgba(255,255,255,0.1)' } }}>
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        </Box>
+
+                        {/* Card body */}
+                        <Box sx={{ p: 2.5 }}>
+
+                          {/* ── Surah card body ── */}
+                          {card.source === 'Surah' && (
+                            <>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                                <LoopIcon sx={{ color: C.green, fontSize: 18 }} />
+                                <Typography sx={{ fontSize: '0.8rem', color: C.textMid, fontWeight: 600 }}>
+                                  Recite all surahs below
+                                </Typography>
+                              </Box>
+
+                              <Grid container spacing={1.5}>
+                                {card.surahs.map((s, idx) => (
+                                  <Grid item xs={12} sm={6} key={s.id}>
+                                    <Box sx={{
+                                      border: `1px solid ${C.border}`, borderRadius: '12px',
+                                      p: 1.5, backgroundColor: C.greenLight,
+                                      display: 'flex', alignItems: 'flex-start', gap: 1.2,
+                                    }}>
+                                      {/* Index badge */}
+                                      <Box sx={{
+                                        minWidth: 28, height: 28, borderRadius: '8px',
+                                        backgroundColor: C.green, display: 'flex',
+                                        alignItems: 'center', justifyContent: 'center',
+                                        color: 'white', fontWeight: 800, fontSize: '0.72rem',
+                                      }}>{idx + 1}</Box>
+
+                                      <Box>
+                                        <Typography sx={{ fontWeight: 700, fontSize: '0.87rem', color: C.textDark, lineHeight: 1.2 }}>
+                                          {s.surahNum}. {s.surahName}
+                                        </Typography>
+                                        <Typography sx={{ fontSize: '0.75rem', color: C.textGrey, mt: 0.3 }}>
+                                          Ayat {s.ayatFrom} → {s.ayatTo}
+                                        </Typography>
+                                        <Box sx={{
+                                          display: 'inline-flex', alignItems: 'center',
+                                          mt: 0.5, px: 1, py: 0.2, borderRadius: '20px',
+                                          backgroundColor: `${C.green}1a`, color: C.green,
+                                          fontSize: '0.72rem', fontWeight: 700,
+                                        }}>
+                                          🔁 {s.count}×
+                                        </Box>
+                                      </Box>
+                                    </Box>
+                                  </Grid>
+                                ))}
+                              </Grid>
+                            </>
+                          )}
+
+                          {/* ── Hadith card body ── */}
+                          {card.source === 'Hadith' && (
+                            <Box sx={{
+                              display: 'flex', gap: 2, flexWrap: 'wrap',
+                              backgroundColor: C.hadithBg, borderRadius: '12px', p: 2,
+                            }}>
+                              <Box>
+                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: C.hadithBlue, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Book</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: C.textDark }}>{card.hadithBook}</Typography>
+                              </Box>
+                              <Divider orientation="vertical" flexItem />
+                              <Box>
+                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: C.hadithBlue, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Hadith #</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: C.textDark }}>{card.hadithNumber}</Typography>
+                              </Box>
+                            </Box>
+                          )}
+
+                          {/* ── Darood card body ── */}
+                          {card.source === 'Darood' && (
+                            <Box sx={{
+                              display: 'flex', gap: 2, flexWrap: 'wrap',
+                              backgroundColor: C.daroodBg, borderRadius: '12px', p: 2,
+                            }}>
+                              <Box>
+                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: C.daroodPurple, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Darood</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: C.textDark }}>{card.daroodName}</Typography>
+                              </Box>
+                              <Divider orientation="vertical" flexItem />
+                              <Box>
+                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: C.daroodPurple, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Count</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: C.textDark }}>🔁 {card.daroodNumber}×</Typography>
+                              </Box>
+                            </Box>
+                          )}
+                        </Box>
+                      </Paper>
+                    </Grid>
+                  );
+                })}
+              </Grid>
+            )}
+          </Grid>
+
+        </Grid>
       </Box>
     </Box>
   );

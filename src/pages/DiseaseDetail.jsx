@@ -19,8 +19,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import FormatListNumberedIcon from '@mui/icons-material/FormatListNumbered';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import API from '../axiosConfig';
-import { useDb } from '../context/DbContext';
-// import { fetchedSurahs } from '../constants/surahs';
+import { SURAHS } from '../constants/surahs';
 
 const DiseaseDetail = () => {
   const { id } = useParams();
@@ -79,14 +78,14 @@ const DiseaseDetail = () => {
           if (hadithResult.length > 0 && hadithResult[0].values.length > 0) {
             setFetchedHadiths(hadithResult[0].values.map((row) => ({ id: row[0], title: row[1] })));
           }
-        } catch (e) {}
+        } catch (e) { }
 
         try {
           const duroodResult = db.exec("SELECT Id, Name FROM duroods");
           if (duroodResult.length > 0 && duroodResult[0].values.length > 0) {
             setFetchedDuroods(duroodResult[0].values.map((row) => ({ id: row[0], title: row[1] })));
           }
-        } catch (e) {}
+        } catch (e) { }
 
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -162,15 +161,29 @@ const DiseaseDetail = () => {
       }];
     }
 
+    const itemLabel =
+      item.type === 'surah' && item.ayat_from && item.ayat_to
+        ? `${itemName} (Ayat ${item.ayat_from}-${item.ayat_to})`
+        : itemName;
+
     const newTreatment = {
       treatment_id: newId,
       EnglishName: itemName,
       ayat_from: item.ayat_from,
       ayat_to: item.ayat_to,
-      disease_name: `${disease.name} (${itemName})`,
+      disease_name: disease.name,
       recitation_count: item.count || 7,
       completed_count: 0,
       status: 'in_progress',
+      itemCounters: [
+        {
+          label: itemLabel,
+          type: item.type || 'surah',
+          target: Number(item.count) || 7,
+          completed: 0,
+          verses: verses,
+        },
+      ],
       verses: verses
     };
 

@@ -330,9 +330,10 @@ const Diseases = () => {
       }
 
       const getItemName = (item) => {
-        if (item.type === "surah") {
+        if (item.type === "surah" || !item.type || item.type === "item") {
           const surah = SURAHS.find(
-            (entry) => String(entry.surah_id) === String(item.itemId),
+            (entry) =>
+              String(entry.surah_id) === String(item.itemId || item.surah_id),
           );
           if (surah) return surah.EnglishName;
         }
@@ -343,7 +344,7 @@ const Diseases = () => {
             : item.type === "durood" || item.type === "darood"
               ? "duroods"
               : null;
-        if (table) {
+        if (table && db) {
           try {
             const result = db.exec(`SELECT Name FROM ${table} WHERE Id = ?`, [
               item.itemId,
@@ -355,7 +356,14 @@ const Diseases = () => {
           }
         }
 
-        return `${item.type} ${item.itemId}`;
+        if (item.itemId) {
+          const surah = SURAHS.find(
+            (entry) => String(entry.surah_id) === String(item.itemId),
+          );
+          if (surah) return surah.EnglishName;
+        }
+
+        return `${item.type || "Surah"} ${item.itemId || ""}`.trim();
       };
 
       const itemCounters = items.map((item) => {
@@ -623,13 +631,20 @@ const Diseases = () => {
                             ]
                           : [];
                     const itemDetails = treatmentItems.map((item) => {
-                      const type = String(item.type || "item").toLowerCase();
+                      const rawType = String(item.type || "").toLowerCase();
+                      const type =
+                        rawType === "hadith" ||
+                        rawType === "durood" ||
+                        rawType === "darood"
+                          ? rawType
+                          : "surah";
                       let name = "";
 
                       if (type === "surah") {
                         const surah = SURAHS.find(
                           (entry) =>
-                            String(entry.surah_id) === String(item.itemId),
+                            String(entry.surah_id) ===
+                            String(item.itemId || item.surah_id),
                         );
                         name = surah?.EnglishName || `Surah ${item.itemId}`;
                       } else {

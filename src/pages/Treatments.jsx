@@ -19,6 +19,92 @@ import CancelIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
+import { SURAHS } from "../constants/surahs";
+
+/**
+ * Resolves a friendly display name for a treatment item or fallback surah.
+ */
+const getSurahNameFromItem = (item, fallbackSurahId) => {
+  if (!item && !fallbackSurahId) return "";
+
+  const idToLookup = item?.itemId || item?.surah_id || fallbackSurahId;
+  if (idToLookup) {
+    const found = SURAHS.find((s) => String(s.surah_id) === String(idToLookup));
+    if (found) {
+      if (item?.ayat_from && item?.ayat_to) {
+        return `${found.EnglishName} (Ayat ${item.ayat_from}-${item.ayat_to})`;
+      }
+      return found.EnglishName;
+    }
+  }
+
+  // If item.label is available and not a generic placeholder
+  if (
+    item?.label &&
+    !/^item\s*\d+$/i.test(item.label.trim()) &&
+    !/^\d+\s*item\(s\)$/i.test(item.label.trim()) &&
+    item.label.trim().toLowerCase() !== "recitation"
+  ) {
+    return item.label;
+  }
+
+  if (
+    item?.name &&
+    !/^item\s*\d+$/i.test(item.name.trim()) &&
+    !/^\d+\s*item\(s\)$/i.test(item.name.trim())
+  ) {
+    return item.name;
+  }
+
+  return "";
+};
+
+/**
+ * Resolves the selected Surah (or item) display name for a treatment card.
+ */
+const getTreatmentSurahName = (t) => {
+  if (!t) return "Selected Surah";
+
+  // Check items in itemCounters
+  if (t.itemCounters && t.itemCounters.length > 0) {
+    const names = t.itemCounters
+      .map((item) => getSurahNameFromItem(item, t.surah_id))
+      .filter(Boolean);
+    if (names.length > 0) {
+      return names.join(", ");
+    }
+  }
+
+  // Check EnglishName on treatment
+  if (
+    t.EnglishName &&
+    t.EnglishName !== "Combined Treatment" &&
+    !/^item\s*\d+$/i.test(t.EnglishName.trim()) &&
+    !/^\d+\s*item\(s\)$/i.test(t.EnglishName.trim()) &&
+    t.EnglishName.trim().toLowerCase() !== "recitation"
+  ) {
+    return t.EnglishName;
+  }
+
+  // Check surah_id on treatment
+  if (t.surah_id) {
+    const found = SURAHS.find((s) => String(s.surah_id) === String(t.surah_id));
+    if (found) {
+      if (t.ayat_from && t.ayat_to) {
+        return `${found.EnglishName} (Ayat ${t.ayat_from}-${t.ayat_to})`;
+      }
+      return found.EnglishName;
+    }
+  }
+
+  // Check if disease_name has the Surah in parentheses: e.g. "Fever (Al-Fatihah)"
+  const match = t.disease_name?.match(/\(([^)]+)\)$/);
+  if (match && match[1]) {
+    return match[1];
+  }
+
+  return "Selected Surah";
+};
 
 /**
  * Normalises a treatment record so it always has an `itemCounters` array.
@@ -26,13 +112,45 @@ import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
  * a one-element array so the same UI can render them.
  */
 const normaliseTreatment = (t) => {
-  if (t.itemCounters && t.itemCounters.length > 0) return t;
+  if (t.itemCounters && t.itemCounters.length > 0) {
+    const cleanedCounters = t.itemCounters.map((item) => {
+      const isPlaceholder =
+        !item.label ||
+        /^item\s*\d+$/i.test(item.label.trim()) ||
+        /^\d+\s*item\(s\)$/i.test(item.label.trim()) ||
+        item.label.trim().toLowerCase() === "recitation";
 
-  const label = t.EnglishName
-    ? t.ayat_from != null
-      ? `${t.EnglishName} (Ayat ${t.ayat_from}–${t.ayat_to})`
+      if (isPlaceholder) {
+        const resolvedName = getSurahNameFromItem(item, t.surah_id);
+        if (resolvedName) {
+          return {
+            ...item,
+            label: resolvedName,
+            type: item.type === "item" || !item.type ? "surah" : item.type,
+          };
+        }
+      }
+      return {
+        ...item,
+        type: item.type === "item" || !item.type ? "surah" : item.type,
+      };
+    });
+
+    return {
+      ...t,
+      itemCounters: cleanedCounters,
+    };
+  }
+
+  const surahName = getTreatmentSurahName(t);
+  const label =
+    surahName !== "Selected Surah"
+      ? surahName
       : t.EnglishName
-    : "Recitation";
+        ? t.ayat_from != null
+          ? `${t.EnglishName} (Ayat ${t.ayat_from}–${t.ayat_to})`
+          : t.EnglishName
+        : "Selected Surah";
 
   return {
     ...t,
@@ -233,7 +351,7 @@ const Treatments = () => {
                         color="text.secondary"
                         sx={{ mb: 1.5 }}
                       >
-                        {t.itemCounters?.length ?? 1} item(s) · {overallDone}/
+                        {getTreatmentSurahName(t)} · {overallDone}/
                         {overallTarget} recitations
                       </Typography>
                       <LinearProgress
