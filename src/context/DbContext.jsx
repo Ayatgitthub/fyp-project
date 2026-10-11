@@ -18,7 +18,10 @@ export const DbProvider = ({ children }) => {
             `https://cdn.jsdelivr.net/npm/sql.js@1.14.1/dist/${file}`,
         });
 
-        const response = await fetch("/quraan.sqlite");
+        let response = await fetch("/database.sqlite");
+        if (!response.ok) {
+          response = await fetch("/quraan.sqlite");
+        }
         if (!response.ok) {
           throw new Error(
             `Failed to load database: ${response.status} ${response.statusText}`,

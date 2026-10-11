@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   Drawer,
@@ -15,7 +14,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import CustomInput from './CustomInput';
 
-const AddDiseaseDrawer = ({ open, onClose }) => {
+const AddDiseaseDrawer = ({ open, onClose, selectedCategory = null, onDiseaseAdded = null }) => {
   const [formData, setFormData] = useState({
     name: '',
     image: '',
@@ -31,14 +30,14 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
     });
   };
 
-  // Select image from gallery
+  // Select image from gallery with compression to keep localStorage lean
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
 
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Please select a valid image.');
+      alert('Please select a valid image file.');
       return;
     }
 
@@ -47,15 +46,67 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
     reader.onloadend = () => {
       const imageData = reader.result;
 
-      setImagePreview(imageData);
+      // Compress image using canvas
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const maxDim = 600;
+          let width = img.width;
+          let height = img.height;
 
-      setFormData((prev) => ({
-        ...prev,
-        image: imageData
-      }));
+          if (width > height) {
+            if (width > maxDim) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            }
+          } else {
+            if (height > maxDim) {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.8);
+
+          setImagePreview(compressed);
+          setFormData((prev) => ({
+            ...prev,
+            image: compressed
+          }));
+        } catch {
+          setImagePreview(imageData);
+          setFormData((prev) => ({
+            ...prev,
+            image: imageData
+          }));
+        }
+      };
+
+      img.onerror = () => {
+        setImagePreview(imageData);
+        setFormData((prev) => ({
+          ...prev,
+          image: imageData
+        }));
+      };
+
+      img.src = imageData;
     };
 
     reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setImagePreview('');
+    setFormData((prev) => ({
+      ...prev,
+      image: ''
+    }));
   };
 
   // Save disease
@@ -71,17 +122,43 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
       const existingData =
         JSON.parse(localStorage.getItem('diseases')) || [];
 
+      const diseaseId = Date.now();
+      const trimmedName = formData.name.trim();
+      const value = trimmedName.toLowerCase().replace(/\s+/g, '_');
+      const defaultPlaceholder =
+        'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80';
+
+      const finalImage = formData.image || defaultPlaceholder;
+      const categoryVal = selectedCategory ? selectedCategory.value : value;
+
       const newDisease = {
-        id: Date.now(),
-        name: formData.name.trim(),
-        image: formData.image,
-        description: formData.description.trim()
+        id: diseaseId,
+        disease_id: diseaseId,
+        name: trimmedName,
+        title: trimmedName,
+        image: finalImage,
+        imageUrl: finalImage,
+        description: formData.description.trim(),
+        value: value,
+        category: categoryVal,
+        category_id: categoryVal,
+        category_title: selectedCategory ? selectedCategory.title : trimmedName,
+        isCustom: true,
+        items: [
+          {
+            type: 'surah',
+            itemId: 1, // Surah Al-Fatiha (Al-Shifa)
+            count: 7,
+            ayat_from: 1,
+            ayat_to: 7
+          }
+        ],
+        recitation_count: 7,
+        createdAt: new Date().toISOString()
       };
 
-      localStorage.setItem(
-        'diseases',
-        JSON.stringify([...existingData, newDisease])
-      );
+      const updatedData = [newDisease, ...existingData];
+      localStorage.setItem('diseases', JSON.stringify(updatedData));
 
       alert('Disease added successfully!');
 
@@ -90,8 +167,11 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
         image: '',
         description: ''
       });
-
       setImagePreview('');
+
+      if (onDiseaseAdded) {
+        onDiseaseAdded(newDisease);
+      }
       onClose();
 
     } catch (error) {
@@ -106,7 +186,6 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
       image: '',
       description: ''
     });
-
     setImagePreview('');
     onClose();
   };
@@ -118,7 +197,7 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
       onClose={handleCancel}
       sx={{
         '& .MuiDrawer-paper': {
-          width: { xs: '100%', sm: 450 },
+          width: { xs: '100%', sm: 460 },
           p: 3,
           boxSizing: 'border-box',
           overflowY: 'auto'
@@ -135,7 +214,7 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
         }}
       >
         <Typography variant="h5" fontWeight="bold">
-          Add New Disease
+          {selectedCategory ? `Add Disease to ${selectedCategory.title}` : 'Add New Disease'}
         </Typography>
 
         <IconButton onClick={handleCancel}>
@@ -148,7 +227,7 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
       <Box component="form" onSubmit={handleSubmit}>
         <Stack spacing={3}>
 
-          {/* Disease Name */}
+          {/* 1. Disease Name */}
           <CustomInput
             label="Disease Name"
             name="name"
@@ -159,7 +238,7 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
             autoComplete="off"
           />
 
-          {/* Gallery Image */}
+          {/* 2. Disease Image (Choose from gallery) */}
           <Box>
             <Typography
               variant="subtitle1"
@@ -170,19 +249,35 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
             </Typography>
 
             {imagePreview && (
-              <Box
-                component="img"
-                src={imagePreview}
-                alt="Disease preview"
-                sx={{
-                  width: '100%',
-                  height: 180,
-                  objectFit: 'cover',
-                  borderRadius: 2,
-                  mb: 2,
-                  border: '1px solid #ddd'
-                }}
-              />
+              <Box sx={{ position: 'relative', mb: 2 }}>
+                <Box
+                  component="img"
+                  src={imagePreview}
+                  alt="Disease preview"
+                  sx={{
+                    width: '100%',
+                    height: 180,
+                    objectFit: 'cover',
+                    borderRadius: 2,
+                    border: '1px solid #ddd',
+                    display: 'block'
+                  }}
+                />
+                <IconButton
+                  size="small"
+                  onClick={handleRemoveImage}
+                  sx={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                    color: '#fff',
+                    '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.8)' }
+                  }}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Box>
             )}
 
             <Button
@@ -193,10 +288,11 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
               sx={{
                 py: 1.5,
                 borderRadius: 2,
-                textTransform: 'none'
+                textTransform: 'none',
+                fontWeight: 600
               }}
             >
-              {imagePreview ? 'Change Image' : 'Choose Image from Gallery'}
+              {imagePreview ? 'Change Image from Gallery' : 'Choose Image from Gallery'}
 
               <input
                 type="file"
@@ -207,19 +303,28 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
             </Button>
           </Box>
 
-          {/* Description */}
-          <TextField
-            fullWidth
-            label="Description"
-            name="description"
-            value={formData.description}
-            onChange={handleChange}
-            multiline
-            rows={4}
-            placeholder="Enter disease description"
-          />
+          {/* 3. Description */}
+          <Box>
+            <Typography
+              variant="subtitle1"
+              fontWeight="medium"
+              sx={{ mb: 1 }}
+            >
+              Description
+            </Typography>
+            <TextField
+              fullWidth
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              multiline
+              rows={4}
+              placeholder="Enter disease description"
+              variant="outlined"
+            />
+          </Box>
 
-          {/* Buttons */}
+          {/* 4. Action Buttons (Cancel and Add Disease) */}
           <Stack direction="row" spacing={2} sx={{ pt: 1 }}>
             <Button
               fullWidth
@@ -228,7 +333,8 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
               sx={{
                 borderRadius: 2,
                 py: 1.5,
-                textTransform: 'none'
+                textTransform: 'none',
+                fontWeight: 'bold'
               }}
             >
               Cancel
@@ -241,7 +347,8 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
               sx={{
                 borderRadius: 2,
                 py: 1.5,
-                textTransform: 'none'
+                textTransform: 'none',
+                fontWeight: 'bold'
               }}
             >
               Add Disease
@@ -255,4 +362,3 @@ const AddDiseaseDrawer = ({ open, onClose }) => {
 };
 
 export default AddDiseaseDrawer;
-

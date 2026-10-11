@@ -12,12 +12,26 @@ import {
   InputAdornment,
   CircularProgress,
   IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Stack,
+  Tooltip,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
+import CloseIcon from "@mui/icons-material/Close";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
+import AutoStoriesIcon from "@mui/icons-material/AutoStories";
+import SaveIcon from "@mui/icons-material/Save";
 import Chip from "@mui/material/Chip";
 import API from "../axiosConfig";
 import AddDiseaseDrawer from "../components/AddDiseaseDrawer";
@@ -250,6 +264,57 @@ import { useDb } from "../context/DbContext";
 //   },
 // ];
 
+const defaultCategories = [
+  {
+    title: "Cold",
+    name: "Cold",
+    value: "cold",
+    imageUrl: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    title: "Flu",
+    name: "Flu",
+    value: "flu",
+    imageUrl: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    title: "Fever",
+    name: "Fever",
+    value: "fever",
+    imageUrl: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    title: "Cough",
+    name: "Cough",
+    value: "cough",
+    imageUrl: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    title: "Headache",
+    name: "Headache",
+    value: "headache",
+    imageUrl: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    title: "Toothache",
+    name: "Toothache",
+    value: "toothache",
+    imageUrl: "https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    title: "Ear Infection",
+    name: "Ear Infection",
+    value: "ear_infection",
+    imageUrl: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80",
+  },
+  {
+    title: "Sore Throat",
+    name: "Sore Throat",
+    value: "sore_throat",
+    imageUrl: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80",
+  },
+];
+
 const Diseases = () => {
   const navigate = useNavigate();
   const { db, dbError } = useDb();
@@ -257,8 +322,66 @@ const Diseases = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [diseaseList, setDiseaseList] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(() => {
+    try {
+      const saved = localStorage.getItem("active_disease_category");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [categories, setCategories] = useState([]);
+  const [userDiseases, setUserDiseases] = useState([]);
+
+  // ── Add Cure Dialog State ──
+  const [openAddCure, setOpenAddCure] = useState(false);
+  const [targetDisease, setTargetDisease] = useState(null);
+  const [cureTitle, setCureTitle] = useState("");
+  const [source, setSource] = useState("Surah");
+  const [activeImageCureId, setActiveImageCureId] = useState(null);
+  const [stagedCureItems, setStagedCureItems] = useState([]);
+
+  // Surah form state
+  const [selectedSurah, setSelectedSurah] = useState("1");
+  const [ayatFrom, setAyatFrom] = useState("1");
+  const [ayatTo, setAyatTo] = useState("7");
+  const [surahCount, setSurahCount] = useState("7");
+
+  // Hadith form state
+  const [hadithBook, setHadithBook] = useState("");
+  const [hadithNumber, setHadithNumber] = useState("");
+  const [hadithCount, setHadithCount] = useState("7");
+
+  // Darood form state
+  const [daroodName, setDaroodName] = useState("");
+  const [daroodNumber, setDaroodNumber] = useState("");
+  const [daroodCount, setDaroodCount] = useState("100");
+
+  const loadUserDiseases = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem("diseases")) || [];
+      setUserDiseases(stored);
+    } catch (e) {
+      setUserDiseases([]);
+    }
+  };
+
+  useEffect(() => {
+    loadUserDiseases();
+    try {
+      const saved = localStorage.getItem("active_disease_category");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setSelectedCategory(parsed);
+        fetchDiseasesByCategory(
+          parsed.value || (parsed.name ? parsed.name.toLowerCase().replace(/\s+/g, "_") : ""),
+          parsed
+        );
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
 
   useEffect(() => {
     if (db) {
@@ -268,8 +391,9 @@ const Diseases = () => {
           const fetchedCategories = result[0].values.map((row) => ({
             id: row[0],
             title: row[1],
+            name: row[1],
             value: row[1] ? row[1].toLowerCase().replace(/\s+/g, "_") : "",
-            imageUrl: row[2],
+            imageUrl: row[2] || "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80",
           }));
           setCategories(fetchedCategories);
         }
@@ -279,13 +403,71 @@ const Diseases = () => {
     }
   }, [db]);
 
-  const fetchDiseasesByCategory = async (categoryValue) => {
+  const baseCategories = categories.length > 0 ? categories : defaultCategories;
+
+  const customList = userDiseases.map((ud) => ({
+    id: ud.id || ud.disease_id,
+    title: ud.title || ud.name,
+    name: ud.name || ud.title,
+    value: ud.value || (ud.name ? ud.name.toLowerCase().replace(/\s+/g, "_") : ""),
+    imageUrl: ud.image || ud.imageUrl || "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80",
+    description: ud.description || "",
+    isCustom: true,
+    items: ud.items || [],
+  }));
+
+  const allDiseases = [
+    ...customList,
+    ...baseCategories.filter(
+      (bc) => !customList.some((c) => c.title?.toLowerCase() === bc.title?.toLowerCase())
+    ),
+  ];
+
+  const fetchDiseasesByCategory = async (categoryValue, categoryObj = null) => {
     setLoading(true);
     try {
       const existingData = JSON.parse(localStorage.getItem("diseases")) || [];
-      const filteredData = existingData.filter(
-        (d) => d.category_id === categoryValue || d.category === categoryValue,
+      const activeCat = categoryObj || selectedCategory;
+
+      let filteredData = existingData.filter(
+        (d) =>
+          d.category_id === categoryValue ||
+          d.category === categoryValue ||
+          d.value === categoryValue ||
+          (d.name && d.name.toLowerCase().replace(/\s+/g, "_") === categoryValue) ||
+          (activeCat && (String(d.id) === String(activeCat.id) || String(d.disease_id) === String(activeCat.id)))
       );
+
+      if (filteredData.length === 0 && activeCat) {
+        const found = existingData.find(
+          (d) =>
+            String(d.id) === String(activeCat.id) ||
+            String(d.disease_id) === String(activeCat.id) ||
+            d.value === categoryValue ||
+            (d.name && d.name.toLowerCase().replace(/\s+/g, "_") === categoryValue)
+        );
+        if (found) {
+          filteredData = [found];
+        } else {
+          filteredData = [
+            {
+              id: activeCat.id || Date.now(),
+              disease_id: activeCat.id || Date.now(),
+              name: activeCat.name || activeCat.title,
+              title: activeCat.title || activeCat.name,
+              value: activeCat.value || (activeCat.name ? activeCat.name.toLowerCase().replace(/\s+/g, "_") : categoryValue),
+              image: activeCat.imageUrl || activeCat.image,
+              imageUrl: activeCat.imageUrl || activeCat.image,
+              description: activeCat.description || "",
+              category: categoryValue,
+              category_id: categoryValue,
+              isCustom: true,
+              items: activeCat.items || [],
+            },
+          ];
+        }
+      }
+
       setDiseaseList(filteredData);
     } catch (error) {
       setDiseaseList([]);
@@ -295,20 +477,722 @@ const Diseases = () => {
   };
 
   const handleDiseaseAdded = () => {
+    loadUserDiseases();
     if (selectedCategory) {
-      fetchDiseasesByCategory(selectedCategory.value);
+      fetchDiseasesByCategory(selectedCategory.value, selectedCategory);
+    }
+  };
+
+  const handleDeleteDisease = (id) => {
+    if (window.confirm("Are you sure you want to delete this disease?")) {
+      const existing = JSON.parse(localStorage.getItem("diseases")) || [];
+      const updated = existing.filter(
+        (d) => String(d.id) !== String(id) && String(d.disease_id) !== String(id)
+      );
+      localStorage.setItem("diseases", JSON.stringify(updated));
+      loadUserDiseases();
+      if (selectedCategory && String(selectedCategory.id) === String(id)) {
+        handleBackToCategories();
+      } else if (selectedCategory) {
+        fetchDiseasesByCategory(selectedCategory.value, selectedCategory);
+      }
     }
   };
 
   const handleCategoryClick = (category) => {
     setSelectedCategory(category);
-    fetchDiseasesByCategory(category.value);
+    localStorage.setItem("active_disease_category", JSON.stringify(category));
+    fetchDiseasesByCategory(category.value, category);
   };
 
   const handleBackToCategories = () => {
     setSelectedCategory(null);
+    localStorage.removeItem("active_disease_category");
     setDiseaseList([]);
     setSearchTerm("");
+  };
+
+  const handleOpenAddCure = (disease) => {
+    setTargetDisease(disease);
+    setCureTitle("");
+    setSource("Surah");
+    setStagedCureItems([]);
+    setSelectedSurah("1");
+    setAyatFrom("1");
+    setAyatTo("7");
+    setSurahCount("7");
+    setHadithBook("");
+    setHadithNumber("");
+    setHadithCount("7");
+    setDaroodName("");
+    setDaroodNumber("");
+    setDaroodCount("100");
+    setOpenAddCure(true);
+  };
+
+  const handleCloseAddCure = () => {
+    setOpenAddCure(false);
+    setTargetDisease(null);
+    setStagedCureItems([]);
+  };
+
+  // ── + Button: Adds entry to the Recitation Card (does NOT permanently save or refresh) ──
+  const handleAddEntryToRecitationCard = (e) => {
+    if (e) e.preventDefault();
+
+    if (!targetDisease) {
+      alert("Please select a disease.");
+      return;
+    }
+
+    if (!source) {
+      alert("Please select a Source.");
+      return;
+    }
+
+    let newEntry = {
+      id: Date.now(),
+      cureTitle: cureTitle.trim(),
+      source,
+      type: source.toLowerCase(),
+    };
+
+    if (source === "Surah") {
+      if (!selectedSurah) {
+        alert("Please select a Surah.");
+        return;
+      }
+      const aFrom = parseInt(ayatFrom);
+      const aTo = parseInt(ayatTo);
+      if (!ayatFrom || !ayatTo || isNaN(aFrom) || isNaN(aTo)) {
+        alert("Please enter valid Ayat From and Ayat To numbers.");
+        return;
+      }
+      if (aFrom > aTo) {
+        alert("Ayat From cannot exceed Ayat To.");
+        return;
+      }
+      const sCount = parseInt(surahCount);
+      if (!surahCount || isNaN(sCount) || sCount <= 0) {
+        alert("Please enter a valid Count greater than 0.");
+        return;
+      }
+
+      const surahObj = SURAHS.find(
+        (s) => String(s.surah_id) === String(selectedSurah)
+      );
+      const sName = surahObj ? surahObj.EnglishName : `Surah ${selectedSurah}`;
+
+      newEntry = {
+        ...newEntry,
+        itemId: parseInt(selectedSurah),
+        surah_id: parseInt(selectedSurah),
+        surahNum: parseInt(selectedSurah),
+        surahName: sName,
+        name: sName,
+        ayat_from: aFrom,
+        ayat_to: aTo,
+        ayatFrom: aFrom,
+        ayatTo: aTo,
+        count: sCount,
+        target: sCount,
+      };
+
+      // Reset Surah fields for next entry
+      setAyatFrom("1");
+      setAyatTo("7");
+      setSurahCount("7");
+    } else if (source === "Hadith") {
+      if (!hadithBook.trim()) {
+        alert("Please enter Hadith Book Name.");
+        return;
+      }
+      if (!hadithNumber.trim()) {
+        alert("Please enter Hadith Number.");
+        return;
+      }
+      const hCount = parseInt(hadithCount);
+      if (!hadithCount || isNaN(hCount) || hCount <= 0) {
+        alert("Please enter a valid Count greater than 0.");
+        return;
+      }
+
+      newEntry = {
+        ...newEntry,
+        bookName: hadithBook.trim(),
+        hadithBook: hadithBook.trim(),
+        hadithNumber: hadithNumber.trim(),
+        name: `${hadithBook.trim()} - Hadith #${hadithNumber.trim()}`,
+        itemId: hadithNumber.trim(),
+        count: hCount,
+        target: hCount,
+      };
+
+      // Reset Hadith fields for next entry
+      setHadithBook("");
+      setHadithNumber("");
+      setHadithCount("7");
+    } else if (source === "Darood") {
+      if (!daroodName.trim()) {
+        alert("Please enter Darood Name.");
+        return;
+      }
+      if (!daroodNumber.trim()) {
+        alert("Please enter Darood Number.");
+        return;
+      }
+      const dCount = parseInt(daroodCount);
+      if (!daroodCount || isNaN(dCount) || dCount <= 0) {
+        alert("Please enter a valid Count greater than 0.");
+        return;
+      }
+
+      newEntry = {
+        ...newEntry,
+        daroodName: daroodName.trim(),
+        daroodNumber: daroodNumber.trim(),
+        name: `${daroodName.trim()} (No. ${daroodNumber.trim()})`,
+        itemId: daroodNumber.trim(),
+        count: dCount,
+        target: dCount,
+      };
+
+      // Reset Darood fields for next entry
+      setDaroodName("");
+      setDaroodNumber("");
+      setDaroodCount("100");
+    }
+
+    // Add entry to staged list
+    setStagedCureItems((prev) => [...prev, newEntry]);
+
+    // Add entry immediately to the Recitation Card on the screen
+    setDiseaseList((prevList) => {
+      const exists = prevList.some(
+        (d) =>
+          (targetDisease.id && String(d.id) === String(targetDisease.id)) ||
+          (d.name &&
+            d.name.toLowerCase() ===
+            (targetDisease.name || targetDisease.title || "").toLowerCase())
+      );
+      if (exists) {
+        return prevList.map((d) => {
+          const isTarget =
+            (targetDisease.id && String(d.id) === String(targetDisease.id)) ||
+            (d.name &&
+              d.name.toLowerCase() ===
+              (targetDisease.name || targetDisease.title || "").toLowerCase());
+          if (isTarget) {
+            const updatedItems = [...(d.items || []), newEntry];
+            return {
+              ...d,
+              items: updatedItems,
+              recitation_count: updatedItems.reduce(
+                (sum, item) => sum + (Number(item.count) || Number(item.target) || 0),
+                0
+              ),
+            };
+          }
+          return d;
+        });
+      } else {
+        const base = {
+          ...targetDisease,
+          items: [...(targetDisease.items || []), newEntry],
+          recitation_count: [...(targetDisease.items || []), newEntry].reduce(
+            (sum, item) => sum + (Number(item.count) || Number(item.target) || 0),
+            0
+          ),
+        };
+        return [base];
+      }
+    });
+
+    setTargetDisease((prev) =>
+      prev ? { ...prev, items: [...(prev.items || []), newEntry] } : prev
+    );
+  };
+
+  const handleRemoveStagedItem = (index) => {
+    const itemToRemove = stagedCureItems[index];
+    setStagedCureItems((prev) => prev.filter((_, i) => i !== index));
+
+    if (itemToRemove && targetDisease) {
+      setDiseaseList((prevList) =>
+        prevList.map((d) => {
+          const isTarget =
+            (targetDisease.id && String(d.id) === String(targetDisease.id)) ||
+            (d.name &&
+              d.name.toLowerCase() ===
+              (targetDisease.name || targetDisease.title || "").toLowerCase());
+          if (isTarget) {
+            const updatedItems = (d.items || []).filter(
+              (item) => item.id !== itemToRemove.id
+            );
+            return {
+              ...d,
+              items: updatedItems,
+              recitation_count: updatedItems.reduce(
+                (sum, item) =>
+                  sum + (Number(item.count) || Number(item.target) || 0),
+                0
+              ),
+            };
+          }
+          return d;
+        })
+      );
+
+      setTargetDisease((prev) =>
+        prev
+          ? {
+            ...prev,
+            items: (prev.items || []).filter(
+              (item) => item.id !== itemToRemove.id
+            ),
+          }
+          : prev
+      );
+    }
+  };
+
+  // ── Helper: Build full treatment data with itemCounters, verses, and targets ──
+  const buildTreatmentData = (diseaseName, items, title = "") => {
+    const getItemName = (item) => {
+      if (item.type === "surah" || !item.type || item.type === "item") {
+        const surah = SURAHS.find(
+          (entry) =>
+            String(entry.surah_id) ===
+            String(item.itemId || item.surah_id || item.surahNum)
+        );
+        if (surah) return surah.EnglishName;
+      }
+
+      if (item.type === "hadith") {
+        return (
+          item.name ||
+          (item.bookName
+            ? `${item.bookName} - Hadith #${item.hadithNumber || item.itemId || ""}`
+            : `Hadith ${item.itemId || item.hadithNumber || ""}`)
+        );
+      }
+      if (item.type === "darood" || item.type === "durood") {
+        return (
+          item.name ||
+          (item.daroodName
+            ? `${item.daroodName} (No. ${item.daroodNumber || item.itemId || ""})`
+            : `Darood ${item.itemId || item.daroodNumber || ""}`)
+        );
+      }
+
+      const table =
+        item.type === "hadith"
+          ? "hadiths"
+          : item.type === "durood" || item.type === "darood"
+            ? "duroods"
+            : null;
+      if (table && db) {
+        try {
+          const result = db.exec(`SELECT Name FROM ${table} WHERE Id = ?`, [
+            item.itemId,
+          ]);
+          if (result.length > 0 && result[0].values.length > 0)
+            return result[0].values[0][0];
+        } catch (error) {
+          console.warn(`Could not load ${item.type} name:`, error);
+        }
+      }
+
+      if (item.itemId) {
+        const surah = SURAHS.find(
+          (entry) => String(entry.surah_id) === String(item.itemId)
+        );
+        if (surah) return surah.EnglishName;
+      }
+
+      return `${item.type || "Surah"} ${item.itemId || ""}`.trim();
+    };
+
+    const itemCounters = (items || []).map((item) => {
+      const name = getItemName(item);
+      let verses = [];
+
+      if (item.type === "surah") {
+        if (db) {
+          try {
+            const versesResult = db.exec(
+              `SELECT VerseId, AyahText FROM Quran WHERE SuraId = ? AND VerseId >= ? AND VerseId <= ?`,
+              [
+                item.itemId || item.surah_id || item.surahNum || 1,
+                item.ayat_from || item.ayatFrom || 1,
+                item.ayat_to || item.ayatTo || 7,
+              ]
+            );
+            if (versesResult.length > 0 && versesResult[0].values.length > 0) {
+              verses = versesResult[0].values.map((row) => ({
+                ayah_id: row[0],
+                arabic: row[1],
+              }));
+            }
+          } catch (error) {
+            console.warn(`Could not load verses for ${name}:`, error);
+          }
+        }
+        if (verses.length === 0) {
+          verses = [
+            {
+              ayah_id: `${name} ${item.ayat_from || item.ayatFrom || 1}-${item.ayat_to || item.ayatTo || 7
+                }`,
+              arabic:
+                "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ ۝ وَإِذَا مَرِضْتُ فَهُوَ يَشْفِينِ",
+            },
+          ];
+        }
+      } else if (item.type === "hadith") {
+        verses = [
+          {
+            ayah_id: `Hadith: ${item.bookName || "Hadith"} #${item.hadithNumber || item.itemId || ""
+              }`,
+            arabic: `قَالَ رَسُولُ اللَّهِ صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ - ${item.bookName || "Hadith"
+              } #${item.hadithNumber || item.itemId || ""}`,
+          },
+        ];
+      } else {
+        verses = [
+          {
+            ayah_id: `Darood: ${item.daroodName || "Darood"} #${item.daroodNumber || item.itemId || ""
+              }`,
+            arabic: `اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ - ${item.daroodName || "Darood"
+              }`,
+          },
+        ];
+      }
+
+      return {
+        label:
+          item.type === "surah" &&
+            (item.ayat_from || item.ayatFrom) &&
+            (item.ayat_to || item.ayatTo)
+            ? `${name} (Ayat ${item.ayat_from || item.ayatFrom}-${item.ayat_to || item.ayatTo
+            })`
+            : name,
+        type: item.type,
+        target: Number(item.count) || Number(item.target) || 7,
+        completed: 0,
+        verses,
+      };
+    });
+
+    const totalCount = itemCounters.reduce(
+      (total, item) => total + item.target,
+      0
+    );
+    const allVerses = itemCounters.flatMap((item) => item.verses);
+
+    return {
+      EnglishName: title || `${diseaseName} Treatment`,
+      disease_name: diseaseName,
+      recitation_count: totalCount || 7,
+      completed_count: 0,
+      status: "in_progress",
+      itemCounters,
+      verses: allVerses,
+    };
+  };
+
+  // ── Save Button: Permanently saves cure to disease AND active treatments, then refreshes page in disease ──
+  const handleSaveCompleteCure = () => {
+    if (!targetDisease) {
+      alert("Please select a disease.");
+      return;
+    }
+
+    let allItemsToSave = [...stagedCureItems];
+
+    // If no entries have been added using +, check if current form fields can be added
+    if (allItemsToSave.length === 0) {
+      if (source === "Surah" && selectedSurah && ayatFrom && ayatTo && surahCount) {
+        const aFrom = parseInt(ayatFrom);
+        const aTo = parseInt(ayatTo);
+        const sCount = parseInt(surahCount);
+        if (aFrom <= aTo && sCount > 0) {
+          const surahObj = SURAHS.find((s) => String(s.surah_id) === String(selectedSurah));
+          const sName = surahObj ? surahObj.EnglishName : `Surah ${selectedSurah}`;
+          allItemsToSave.push({
+            id: Date.now(),
+            cureTitle: cureTitle.trim(),
+            source,
+            type: "surah",
+            itemId: parseInt(selectedSurah),
+            surah_id: parseInt(selectedSurah),
+            surahNum: parseInt(selectedSurah),
+            surahName: sName,
+            name: sName,
+            ayat_from: aFrom,
+            ayat_to: aTo,
+            ayatFrom: aFrom,
+            ayatTo: aTo,
+            count: sCount,
+            target: sCount,
+          });
+        }
+      } else if (source === "Hadith" && hadithBook.trim() && hadithNumber.trim() && hadithCount) {
+        const hCount = parseInt(hadithCount);
+        if (hCount > 0) {
+          allItemsToSave.push({
+            id: Date.now(),
+            cureTitle: cureTitle.trim(),
+            source,
+            type: "hadith",
+            bookName: hadithBook.trim(),
+            hadithBook: hadithBook.trim(),
+            hadithNumber: hadithNumber.trim(),
+            name: `${hadithBook.trim()} - Hadith #${hadithNumber.trim()}`,
+            itemId: hadithNumber.trim(),
+            count: hCount,
+            target: hCount,
+          });
+        }
+      } else if (source === "Darood" && daroodName.trim() && daroodNumber.trim() && daroodCount) {
+        const dCount = parseInt(daroodCount);
+        if (dCount > 0) {
+          allItemsToSave.push({
+            id: Date.now(),
+            cureTitle: cureTitle.trim(),
+            source,
+            type: "darood",
+            daroodName: daroodName.trim(),
+            daroodNumber: daroodNumber.trim(),
+            name: `${daroodName.trim()} (No. ${daroodNumber.trim()})`,
+            itemId: daroodNumber.trim(),
+            count: dCount,
+            target: dCount,
+          });
+        }
+      }
+    }
+
+    if (allItemsToSave.length === 0) {
+      alert("Please add at least one Surah, Hadith, or Darood using the + button before saving.");
+      return;
+    }
+
+    try {
+      const existingData = JSON.parse(localStorage.getItem("diseases")) || [];
+      const dName = targetDisease.name || targetDisease.title;
+      const dVal = targetDisease.value || dName.toLowerCase().replace(/\s+/g, "_");
+
+      const targetIdx = existingData.findIndex(
+        (d) =>
+          (targetDisease.id && String(d.id) === String(targetDisease.id)) ||
+          (targetDisease.disease_id &&
+            String(d.disease_id) === String(targetDisease.disease_id)) ||
+          (d.name && d.name.toLowerCase() === dName.toLowerCase()) ||
+          (d.value && d.value === dVal)
+      );
+
+      let updatedDisease;
+      if (targetIdx >= 0) {
+        const existingItems = existingData[targetIdx].items || [];
+        const existingItemIds = new Set(existingItems.map((it) => it.id));
+        const newItemsOnly = allItemsToSave.filter((it) => !existingItemIds.has(it.id));
+        const updatedItems = [...existingItems, ...newItemsOnly];
+        const totalCount = updatedItems.reduce(
+          (sum, item) => sum + (Number(item.count) || Number(item.target) || 0),
+          0
+        );
+
+        existingData[targetIdx] = {
+          ...existingData[targetIdx],
+          cure_title: cureTitle.trim() || existingData[targetIdx].cure_title,
+          items: updatedItems,
+          recitation_count: totalCount,
+        };
+        updatedDisease = existingData[targetIdx];
+      } else {
+        const diseaseId = targetDisease.id || Date.now();
+        const defaultPlaceholder =
+          "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=600&q=80";
+        updatedDisease = {
+          id: diseaseId,
+          disease_id: diseaseId,
+          name: dName,
+          title: dName,
+          value: dVal,
+          cure_title: cureTitle.trim(),
+          image: targetDisease.imageUrl || targetDisease.image || defaultPlaceholder,
+          imageUrl: targetDisease.imageUrl || targetDisease.image || defaultPlaceholder,
+          description: targetDisease.description || "",
+          category: dVal,
+          category_id: dVal,
+          category_title: dName,
+          isCustom: true,
+          items: allItemsToSave,
+          recitation_count: allItemsToSave.reduce(
+            (sum, item) => sum + (Number(item.count) || Number(item.target) || 0),
+            0
+          ),
+          createdAt: new Date().toISOString(),
+        };
+        existingData.unshift(updatedDisease);
+      }
+
+      // ── 1. Save in diseases localStorage ──
+      localStorage.setItem("diseases", JSON.stringify(existingData));
+
+      // ── 2. Save in Active Treatments (localStorage 'treatments') ──
+      try {
+        const treatmentData = buildTreatmentData(
+          dName,
+          updatedDisease.items || allItemsToSave,
+          cureTitle.trim()
+        );
+
+        const existingTreatments =
+          JSON.parse(localStorage.getItem("treatments")) || [];
+
+        const existingTreatIdx = existingTreatments.findIndex(
+          (t) =>
+            t.disease_name &&
+            t.disease_name.toLowerCase() === dName.toLowerCase() &&
+            t.status === "in_progress"
+        );
+
+        if (existingTreatIdx >= 0) {
+          const prevCompleted =
+            existingTreatments[existingTreatIdx].completed_count || 0;
+          existingTreatments[existingTreatIdx] = {
+            ...existingTreatments[existingTreatIdx],
+            ...treatmentData,
+            completed_count: prevCompleted,
+          };
+        } else {
+          const newTreatmentId =
+            existingTreatments.length > 0
+              ? Math.max(
+                ...existingTreatments.map((t) => Number(t.treatment_id) || 0)
+              ) + 1
+              : 1;
+          existingTreatments.unshift({
+            ...treatmentData,
+            treatment_id: newTreatmentId,
+          });
+        }
+
+        localStorage.setItem("treatments", JSON.stringify(existingTreatments));
+      } catch (treatErr) {
+        console.error("Error saving active treatment:", treatErr);
+      }
+
+      // ── 3. Keep current disease category active so refresh stays in this disease ──
+      const catValue =
+        (selectedCategory &&
+          (selectedCategory.value || selectedCategory.category)) ||
+        dVal;
+      const catTitle =
+        (selectedCategory &&
+          (selectedCategory.title || selectedCategory.name)) ||
+        dName;
+
+      const activeCat = {
+        ...selectedCategory,
+        id: selectedCategory?.id || updatedDisease.id,
+        disease_id:
+          selectedCategory?.disease_id ||
+          updatedDisease.disease_id ||
+          updatedDisease.id,
+        name: catTitle,
+        title: catTitle,
+        value: catValue,
+        category: catValue,
+        category_id: catValue,
+        image: updatedDisease.image || updatedDisease.imageUrl,
+        imageUrl: updatedDisease.image || updatedDisease.imageUrl,
+        description: updatedDisease.description || "",
+        items: updatedDisease.items,
+        recitation_count: updatedDisease.recitation_count,
+      };
+
+      localStorage.setItem(
+        "active_disease_category",
+        JSON.stringify(activeCat)
+      );
+      setSelectedCategory(activeCat);
+
+      alert(`Complete cure for "${dName}" saved and added to Active Treatments!`);
+      setOpenAddCure(false);
+      setStagedCureItems([]);
+
+      // Permanently saved, refresh page in disease view:
+      window.location.reload();
+    } catch (error) {
+      console.error("Error saving complete cure:", error);
+      alert("Failed to save complete cure. Please try again.");
+    }
+  };
+
+  const handleDeleteCureItem = (disease, itemIndex) => {
+    if (!window.confirm("Are you sure you want to delete this cure item?")) return;
+    try {
+      const existingData = JSON.parse(localStorage.getItem("diseases")) || [];
+      const dName = disease.name || disease.title;
+      const targetIdx = existingData.findIndex(
+        (d) =>
+          String(d.id) === String(disease.id) ||
+          String(d.disease_id) === String(disease.id) ||
+          (d.name && d.name.toLowerCase() === dName.toLowerCase())
+      );
+
+      if (targetIdx >= 0) {
+        const updatedItems = [...(existingData[targetIdx].items || [])];
+        updatedItems.splice(itemIndex, 1);
+        const totalCount = updatedItems.reduce(
+          (sum, it) => sum + (Number(it.count) || Number(it.target) || 0),
+          0
+        );
+        existingData[targetIdx] = {
+          ...existingData[targetIdx],
+          items: updatedItems,
+          recitation_count: totalCount,
+        };
+        localStorage.setItem("diseases", JSON.stringify(existingData));
+        localStorage.setItem(
+          "active_disease_category",
+          JSON.stringify(existingData[targetIdx])
+        );
+
+        // Also update Active Treatments
+        try {
+          const existingTreatments =
+            JSON.parse(localStorage.getItem("treatments")) || [];
+          const treatIdx = existingTreatments.findIndex(
+            (t) =>
+              t.disease_name &&
+              t.disease_name.toLowerCase() === dName.toLowerCase() &&
+              t.status === "in_progress"
+          );
+          if (treatIdx >= 0) {
+            const treatmentData = buildTreatmentData(
+              dName,
+              updatedItems,
+              existingTreatments[treatIdx].EnglishName
+            );
+            existingTreatments[treatIdx] = {
+              ...existingTreatments[treatIdx],
+              ...treatmentData,
+              treatment_id: existingTreatments[treatIdx].treatment_id,
+            };
+            localStorage.setItem("treatments", JSON.stringify(existingTreatments));
+          }
+        } catch (e) {
+          console.error(e);
+        }
+
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error("Error deleting cure item:", error);
+    }
   };
 
   const handleStartTreatment = async (disease, reference) => {
@@ -329,116 +1213,41 @@ const Diseases = () => {
         });
       }
 
-      const getItemName = (item) => {
-        if (item.type === "surah" || !item.type || item.type === "item") {
-          const surah = SURAHS.find(
-            (entry) =>
-              String(entry.surah_id) === String(item.itemId || item.surah_id),
-          );
-          if (surah) return surah.EnglishName;
-        }
-
-        const table =
-          item.type === "hadith"
-            ? "hadiths"
-            : item.type === "durood" || item.type === "darood"
-              ? "duroods"
-              : null;
-        if (table && db) {
-          try {
-            const result = db.exec(`SELECT Name FROM ${table} WHERE Id = ?`, [
-              item.itemId,
-            ]);
-            if (result.length > 0 && result[0].values.length > 0)
-              return result[0].values[0][0];
-          } catch (error) {
-            console.warn(`Could not load ${item.type} name:`, error);
-          }
-        }
-
-        if (item.itemId) {
-          const surah = SURAHS.find(
-            (entry) => String(entry.surah_id) === String(item.itemId),
-          );
-          if (surah) return surah.EnglishName;
-        }
-
-        return `${item.type || "Surah"} ${item.itemId || ""}`.trim();
-      };
-
-      const itemCounters = items.map((item) => {
-        const name = getItemName(item);
-        let verses = [];
-
-        if (item.type === "surah") {
-          try {
-            const versesResult = db.exec(
-              `SELECT VerseId, AyahText FROM Quran WHERE SuraId = ? AND VerseId >= ? AND VerseId <= ?`,
-              [item.itemId, item.ayat_from || 1, item.ayat_to || 7],
-            );
-            if (versesResult.length > 0 && versesResult[0].values.length > 0) {
-              verses = versesResult[0].values.map((row) => ({
-                ayah_id: row[0],
-                arabic: row[1],
-              }));
-            }
-          } catch (error) {
-            console.warn(`Could not load verses for ${name}:`, error);
-          }
-          if (verses.length === 0) {
-            verses = [
-              {
-                ayah_id: `${name} ${item.ayat_from || 1}-${item.ayat_to || 7}`,
-                arabic:
-                  "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ ۝ وَإِذَا مَرِضْتُ فَهُوَ يَشْفِينِ",
-              },
-            ];
-          }
-        } else {
-          verses = [
-            {
-              ayah_id: `${item.type}-${item.itemId}`,
-              arabic: `Text for ${name}`,
-            },
-          ];
-        }
-
-        return {
-          label:
-            item.type === "surah" && item.ayat_from && item.ayat_to
-              ? `${name} (Ayat ${item.ayat_from}-${item.ayat_to})`
-              : name,
-          type: item.type,
-          target: Number(item.count) || 7,
-          completed: 0,
-          verses,
-        };
-      });
-
-      const totalCount = itemCounters.reduce(
-        (total, item) => total + item.target,
-        0,
-      );
-      const allVerses = itemCounters.flatMap((item) => item.verses);
+      const dName = disease.name || disease.title;
+      const treatmentData = buildTreatmentData(dName, items, reference);
 
       const existingTreatments =
         JSON.parse(localStorage.getItem("treatments")) || [];
-      const newTreatmentId = existingTreatments.length + 1;
 
-      const newTreatment = {
-        treatment_id: newTreatmentId,
-        EnglishName: reference || "Combined Treatment",
-        disease_name: disease.name,
-        recitation_count: totalCount || 7,
-        completed_count: 0,
-        status: "in_progress",
-        itemCounters,
-        verses: allVerses,
-      };
+      const existingTreatIdx = existingTreatments.findIndex(
+        (t) =>
+          t.disease_name &&
+          t.disease_name.toLowerCase() === dName.toLowerCase() &&
+          t.status === "in_progress"
+      );
 
-      const updatedTreatments = [...existingTreatments, newTreatment];
-      localStorage.setItem("treatments", JSON.stringify(updatedTreatments));
+      let treatmentId;
+      if (existingTreatIdx >= 0) {
+        treatmentId = existingTreatments[existingTreatIdx].treatment_id;
+        existingTreatments[existingTreatIdx] = {
+          ...existingTreatments[existingTreatIdx],
+          ...treatmentData,
+          treatment_id: treatmentId,
+        };
+      } else {
+        treatmentId =
+          existingTreatments.length > 0
+            ? Math.max(
+              ...existingTreatments.map((t) => Number(t.treatment_id) || 0)
+            ) + 1
+            : 1;
+        existingTreatments.unshift({
+          ...treatmentData,
+          treatment_id: treatmentId,
+        });
+      }
 
+      localStorage.setItem("treatments", JSON.stringify(existingTreatments));
       navigate("/app/treatments");
     } catch (error) {
       console.log("Error starting treatment:", error);
@@ -527,22 +1336,27 @@ const Diseases = () => {
                 gap: 2,
               }}
             >
-              {categories
+              {allDiseases
                 .filter((cat) =>
-                  cat.title.toLowerCase().includes(searchTerm.toLowerCase()),
+                  (cat.title || cat.name || "")
+                    .toLowerCase()
+                    .includes(searchTerm.toLowerCase()) ||
+                  (cat.description || "")
+                    .toLowerCase()
+                    .includes(searchTerm.toLowerCase())
                 )
-                .map((category) => (
+                .map((disease) => (
                   <Card
-                    key={category.value}
-                    onClick={() => handleCategoryClick(category)}
+                    key={disease.id || disease.value || disease.title}
+                    onClick={() => handleCategoryClick(disease)}
                     sx={{
                       height: "100%",
-
                       display: "flex",
                       flexDirection: "column",
                       cursor: "pointer",
                       borderRadius: 4,
                       overflow: "hidden",
+                      position: "relative",
                       boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
                       transition: "all 0.3s ease",
                       "&:hover": {
@@ -551,26 +1365,146 @@ const Diseases = () => {
                       },
                     }}
                   >
-                    <CardMedia
-                      component="img"
-                      height="180"
-                      image={category.imageUrl}
-                      alt={category.title}
-                      sx={{ objectFit: "cover" }}
-                    />
+                    {disease.isCustom && (
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteDisease(disease.id);
+                        }}
+                        sx={{
+                          position: "absolute",
+                          top: 10,
+                          right: 10,
+                          zIndex: 2,
+                          bgcolor: "rgba(255, 255, 255, 0.9)",
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
+                          "&:hover": { bgcolor: "#fff" },
+                        }}
+                        title="Delete disease"
+                      >
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    )}
+
+                    <Box
+                      sx={{
+                        position: "relative",
+                        overflow: "hidden",
+                        height: 180,
+                        cursor: "pointer",
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const key = String(disease.id || disease.disease_id || disease.value || disease.title);
+                        setActiveImageCureId((prev) => (prev === key ? null : key));
+                      }}
+                    >
+                      <CardMedia
+                        component="img"
+                        height="180"
+                        image={disease.imageUrl || disease.image}
+                        alt={disease.title || disease.name}
+                        sx={{
+                          objectFit: "cover",
+                          width: "100%",
+                          height: "100%",
+                          transition: "transform 0.3s ease",
+                          "&:hover": { transform: "scale(1.03)" },
+                        }}
+                      />
+                      {activeImageCureId ===
+                        String(disease.id || disease.disease_id || disease.value || disease.title) && (
+                          <Box
+                            sx={{
+                              position: "absolute",
+                              inset: 0,
+                              bgcolor: "rgba(0, 0, 0, 0.6)",
+                              backdropFilter: "blur(2px)",
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: 1,
+                              zIndex: 3,
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Button
+                              variant="contained"
+                              size="medium"
+                              startIcon={<AddIcon />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveImageCureId(null);
+                                handleOpenAddCure(disease);
+                              }}
+                              sx={{
+                                bgcolor: "#1b5e20",
+                                color: "#fff",
+                                fontWeight: "bold",
+                                borderRadius: 2,
+                                px: 2.5,
+                                py: 1,
+                                boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                                "&:hover": { bgcolor: "#114015" },
+                                textTransform: "none",
+                              }}
+                            >
+                              Add Cure
+                            </Button>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "rgba(255, 255, 255, 0.85)", fontSize: "0.75rem" }}
+                            >
+                              Click to add cure
+                            </Typography>
+                          </Box>
+                        )}
+                    </Box>
                     <CardContent
                       sx={{
                         textAlign: "center",
                         py: 2,
+                        px: 2,
                         flexGrow: 1,
                         display: "flex",
+                        flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
                       }}
                     >
-                      <Typography variant="body1" sx={{ fontWeight: "bold" }}>
-                        {category.title}
-                      </Typography>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5, flexWrap: "wrap", justifyContent: "center" }}>
+                        <Typography variant="body1" sx={{ fontWeight: "bold" }}>
+                          {disease.title || disease.name}
+                        </Typography>
+                        {disease.isCustom && (
+                          <Chip
+                            label="Added"
+                            size="small"
+                            color="success"
+                            variant="outlined"
+                            sx={{ height: 20, fontSize: "0.7rem", fontWeight: "bold" }}
+                          />
+                        )}
+                      </Box>
+                      {disease.description && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                            textAlign: "center",
+                            mt: 0.5,
+                          }}
+                        >
+                          {disease.description}
+                        </Typography>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -621,21 +1555,21 @@ const Diseases = () => {
                         ? items
                         : disease.surah_id
                           ? [
-                              {
-                                type: "surah",
-                                itemId: disease.surah_id,
-                                count: disease.recitation_count || 7,
-                                ayat_from: disease.ayat_from || 1,
-                                ayat_to: disease.ayat_to || 7,
-                              },
-                            ]
+                            {
+                              type: "surah",
+                              itemId: disease.surah_id,
+                              count: disease.recitation_count || 7,
+                              ayat_from: disease.ayat_from || 1,
+                              ayat_to: disease.ayat_to || 7,
+                            },
+                          ]
                           : [];
                     const itemDetails = treatmentItems.map((item) => {
                       const rawType = String(item.type || "").toLowerCase();
                       const type =
                         rawType === "hadith" ||
-                        rawType === "durood" ||
-                        rawType === "darood"
+                          rawType === "durood" ||
+                          rawType === "darood"
                           ? rawType
                           : "surah";
                       let name = "";
@@ -710,7 +1644,7 @@ const Diseases = () => {
 
                     return (
                       <Card
-                        key={disease.disease_id}
+                        key={disease.disease_id || disease.id || disease.name}
                         sx={{
                           borderRadius: 3,
                           boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
@@ -725,12 +1659,96 @@ const Diseases = () => {
                         }}
                       >
                         <CardContent sx={{ p: 3 }}>
+                          {(disease.image || disease.imageUrl) && (
+                            <Box
+                              sx={{
+                                position: "relative",
+                                width: "100%",
+                                maxHeight: 220,
+                                borderRadius: 2,
+                                overflow: "hidden",
+                                mb: 2,
+                                border: "1px solid #eee",
+                                cursor: "pointer",
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const key = `recitation-${disease.id || disease.disease_id || disease.name}`;
+                                setActiveImageCureId((prev) => (prev === key ? null : key));
+                              }}
+                              title="Click disease image to show Add Cure option"
+                            >
+                              <Box
+                                component="img"
+                                src={disease.image || disease.imageUrl}
+                                alt={disease.name}
+                                sx={{
+                                  width: "100%",
+                                  maxHeight: 220,
+                                  objectFit: "cover",
+                                  display: "block",
+                                  transition: "transform 0.3s ease",
+                                  "&:hover": { transform: "scale(1.02)" },
+                                }}
+                              />
+                              {activeImageCureId ===
+                                `recitation-${disease.id || disease.disease_id || disease.name}` && (
+                                  <Box
+                                    sx={{
+                                      position: "absolute",
+                                      inset: 0,
+                                      bgcolor: "rgba(0, 0, 0, 0.6)",
+                                      backdropFilter: "blur(2px)",
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      gap: 1,
+                                      zIndex: 3,
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <Button
+                                      variant="contained"
+                                      size="medium"
+                                      startIcon={<AddIcon />}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveImageCureId(null);
+                                        handleOpenAddCure(disease);
+                                      }}
+                                      sx={{
+                                        bgcolor: "#1b5e20",
+                                        color: "#fff",
+                                        fontWeight: "bold",
+                                        borderRadius: 2,
+                                        px: 2.5,
+                                        py: 1,
+                                        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                                        "&:hover": { bgcolor: "#114015" },
+                                        textTransform: "none",
+                                      }}
+                                    >
+                                      Add Cure
+                                    </Button>
+                                    <Typography
+                                      variant="caption"
+                                      sx={{ color: "rgba(255, 255, 255, 0.85)", fontSize: "0.75rem" }}
+                                    >
+                                      Click to add cure for {disease.name}
+                                    </Typography>
+                                  </Box>
+                                )}
+                            </Box>
+                          )}
                           <Box
                             sx={{
                               display: "flex",
                               justifyContent: "space-between",
                               alignItems: "center",
                               mb: 2,
+                              flexWrap: "wrap",
+                              gap: 1,
                             }}
                           >
                             <Typography
@@ -752,24 +1770,42 @@ const Diseases = () => {
                             />
                           </Box>
 
-                          <Typography
-                            variant="subtitle1"
+                          <Box
                             sx={{
-                              mb: 1,
-                              fontWeight: 500,
-                              color: "text.secondary",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              mb: 1.5,
                             }}
                           >
-                            {itemDetails.length > 0
-                              ? "Treatment Items"
-                              : reference}
-                          </Typography>
+                            <Typography
+                              variant="subtitle1"
+                              sx={{
+                                fontWeight: 600,
+                                color: "text.primary",
+                              }}
+                            >
+                              Treatment Items ({itemDetails.length})
+                            </Typography>
+                            <Button
+                              size="small"
+                              startIcon={<AddIcon />}
+                              onClick={() => handleOpenAddCure(disease)}
+                              sx={{
+                                textTransform: "none",
+                                fontWeight: "bold",
+                                color: "#1b5e20",
+                              }}
+                            >
+                              + Add More
+                            </Button>
+                          </Box>
 
-                          {itemDetails.length > 0 && (
-                            <Box sx={{ display: "grid", gap: 1, mb: 2 }}>
+                          {itemDetails.length > 0 ? (
+                            <Box sx={{ display: "grid", gap: 1.5, mb: 2 }}>
                               {itemDetails.map((item, index) => (
                                 <Box
-                                  key={`${item.type}-${item.itemId}-${index}`}
+                                  key={`${item.type}-${item.itemId || item.id || index}-${index}`}
                                   sx={{
                                     display: "flex",
                                     justifyContent: "space-between",
@@ -778,40 +1814,145 @@ const Diseases = () => {
                                     p: 1.5,
                                     border: "1px solid",
                                     borderColor: "divider",
-                                    borderRadius: 1,
+                                    borderRadius: 2,
+                                    bgcolor:
+                                      item.type === "surah"
+                                        ? "rgba(27, 94, 32, 0.03)"
+                                        : item.type === "hadith"
+                                          ? "rgba(21, 101, 192, 0.03)"
+                                          : "rgba(106, 27, 154, 0.03)",
                                   }}
                                 >
-                                  <Box sx={{ minWidth: 0 }}>
-                                    <Typography
-                                      variant="body1"
-                                      sx={{ fontWeight: 600 }}
+                                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                                    <Box
+                                      sx={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 1,
+                                        mb: 0.5,
+                                        flexWrap: "wrap",
+                                      }}
                                     >
-                                      {item.name}
-                                    </Typography>
+                                      <Typography
+                                        variant="body1"
+                                        sx={{ fontWeight: 600 }}
+                                      >
+                                        {item.name}
+                                      </Typography>
+                                      {item.cureTitle && (
+                                        <Chip
+                                          label={item.cureTitle}
+                                          size="small"
+                                          variant="outlined"
+                                          sx={{ height: 20, fontSize: "0.7rem" }}
+                                        />
+                                      )}
+                                      <Chip
+                                        label={
+                                          item.type === "surah"
+                                            ? "Surah"
+                                            : item.type === "hadith"
+                                              ? "Hadith"
+                                              : "Darood"
+                                        }
+                                        size="small"
+                                        sx={{
+                                          height: 20,
+                                          fontSize: "0.7rem",
+                                          fontWeight: "bold",
+                                          bgcolor:
+                                            item.type === "surah"
+                                              ? "#e8f5e9"
+                                              : item.type === "hadith"
+                                                ? "#e3f2fd"
+                                                : "#f3e5f5",
+                                          color:
+                                            item.type === "surah"
+                                              ? "#1b5e20"
+                                              : item.type === "hadith"
+                                                ? "#1565c0"
+                                                : "#6a1b9a",
+                                        }}
+                                      />
+                                    </Box>
                                     <Typography
                                       variant="caption"
                                       color="text.secondary"
                                     >
                                       {item.type === "surah"
-                                        ? `Surah · Ayat ${item.ayat_from || 1}-${item.ayat_to || 7}`
+                                        ? `Surah · Ayat ${item.ayat_from || item.ayatFrom || 1}-${item.ayat_to || item.ayatTo || 7}`
                                         : item.type === "darood" ||
-                                            item.type === "durood"
-                                          ? "Darood"
-                                          : "Hadith"}
+                                          item.type === "durood"
+                                          ? `Darood${item.daroodNumber ? ` · No. ${item.daroodNumber}` : ""}`
+                                          : `Hadith${item.hadithNumber ? ` · No. ${item.hadithNumber}` : ""}`}
                                     </Typography>
                                   </Box>
-                                  <Typography
-                                    variant="body2"
+                                  <Box
                                     sx={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 1.5,
                                       flexShrink: 0,
-                                      fontWeight: 600,
-                                      color: "primary.main",
                                     }}
                                   >
-                                    {item.target} recitations
-                                  </Typography>
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        fontWeight: 700,
+                                        color: "primary.main",
+                                      }}
+                                    >
+                                      {item.target} recitations
+                                    </Typography>
+                                    <IconButton
+                                      size="small"
+                                      color="error"
+                                      title="Delete cure item"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteCureItem(disease, index);
+                                      }}
+                                    >
+                                      <DeleteOutlineIcon fontSize="small" />
+                                    </IconButton>
+                                  </Box>
                                 </Box>
                               ))}
+                            </Box>
+                          ) : (
+                            <Box
+                              sx={{
+                                textAlign: "center",
+                                py: 3,
+                                px: 2,
+                                bgcolor: "rgba(0,0,0,0.02)",
+                                borderRadius: 2,
+                                mb: 2,
+                                border: "1px dashed rgba(0,0,0,0.1)",
+                              }}
+                            >
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ mb: 1.5 }}
+                              >
+                                No cures added yet for {disease.name}.
+                              </Typography>
+                              <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<AddIcon />}
+                                onClick={() => handleOpenAddCure(disease)}
+                                sx={{
+                                  borderRadius: 2,
+                                  textTransform: "none",
+                                  fontWeight: "bold",
+                                  bgcolor: "#1b5e20",
+                                  "&:hover": { bgcolor: "#114015" },
+                                }}
+                              >
+                                Add Cure
+                              </Button>
                             </Box>
                           )}
 
@@ -853,22 +1994,44 @@ const Diseases = () => {
                             </Typography>
                           </Box>
 
-                          <Button
-                            variant="contained"
-                            size="large"
-                            startIcon={<PlayArrowIcon />}
-                            sx={{
-                              borderRadius: 2,
-                              px: 4,
-                              textTransform: "none",
-                              fontWeight: "bold",
-                            }}
-                            onClick={() =>
-                              handleStartTreatment(disease, reference)
-                            }
-                          >
-                            Start Treatment
-                          </Button>
+                          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+                            <Button
+                              variant="contained"
+                              size="large"
+                              startIcon={<PlayArrowIcon />}
+                              sx={{
+                                borderRadius: 2,
+                                px: 4,
+                                textTransform: "none",
+                                fontWeight: "bold",
+                              }}
+                              onClick={() =>
+                                handleStartTreatment(disease, reference)
+                              }
+                            >
+                              Start Treatment
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              size="large"
+                              startIcon={<AddIcon />}
+                              sx={{
+                                borderRadius: 2,
+                                px: 3,
+                                textTransform: "none",
+                                fontWeight: "bold",
+                                color: "#1b5e20",
+                                borderColor: "#1b5e20",
+                                "&:hover": {
+                                  borderColor: "#114015",
+                                  bgcolor: "#e8f5e9",
+                                },
+                              }}
+                              onClick={() => handleOpenAddCure(disease)}
+                            >
+                              Add Cure
+                            </Button>
+                          </Box>
                         </CardContent>
                       </Card>
                     );
@@ -881,13 +2044,386 @@ const Diseases = () => {
 
       <AddDiseaseDrawer
         open={openDrawer}
-        onClose={() => {
-          setOpenDrawer(false);
-          if (selectedCategory) {
-            fetchDiseasesByCategory(selectedCategory.value);
-          }
-        }}
+        selectedCategory={selectedCategory}
+        onClose={() => setOpenDrawer(false)}
+        onDiseaseAdded={handleDiseaseAdded}
       />
+
+      {/* ── Add Cure Dialog ── */}
+      <Dialog
+        open={openAddCure}
+        onClose={handleCloseAddCure}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            p: 1,
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            pb: 1,
+          }}
+        >
+          <Box>
+            <Typography variant="h5" fontWeight="bold">
+              Add Cure
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Add Quranic Surah, Hadith, or Darood for spiritual healing
+            </Typography>
+          </Box>
+          <IconButton onClick={handleCloseAddCure}>
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <Divider />
+        <DialogContent sx={{ pt: 3 }}>
+          <Stack spacing={2.5}>
+            {/* 1. Show Disease Name */}
+            <TextField
+              label="Disease Name"
+              value={targetDisease?.name || targetDisease?.title || ""}
+              fullWidth
+              InputProps={{
+                readOnly: true,
+              }}
+              helperText="Selected disease for this cure"
+              sx={{ bgcolor: "#f9fbf9" }}
+            />
+
+            {/* Title */}
+            <TextField
+              label="Cure Title"
+              placeholder="Enter cure title (e.g., Kidney Pain Treatment)"
+              value={cureTitle}
+              onChange={(e) => setCureTitle(e.target.value)}
+              fullWidth
+              required
+              autoFocus
+            />
+
+            {/* Source */}
+            <FormControl fullWidth required>
+              <InputLabel id="source-select-label">Source</InputLabel>
+              <Select
+                labelId="source-select-label"
+                value={source}
+                label="Source"
+                onChange={(e) => setSource(e.target.value)}
+              >
+                <MenuItem value="Surah">Surah</MenuItem>
+                <MenuItem value="Hadith">Hadith</MenuItem>
+                <MenuItem value="Darood">Darood</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* 2. Surah Fields */}
+            {source === "Surah" && (
+              <Box
+                sx={{
+                  p: 2,
+                  bgcolor: "#f1f8f1",
+                  borderRadius: 2,
+                  border: "1px solid #c8e6c9",
+                }}
+              >
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontWeight: "bold", color: "#1b5e20", mb: 2 }}
+                >
+                  Surah Details
+                </Typography>
+                <Stack spacing={2}>
+                  <FormControl fullWidth required>
+                    <InputLabel id="surah-select-label">Select Surah</InputLabel>
+                    <Select
+                      labelId="surah-select-label"
+                      value={selectedSurah}
+                      label="Select Surah"
+                      onChange={(e) => setSelectedSurah(e.target.value)}
+                    >
+                      {SURAHS.map((s) => (
+                        <MenuItem key={s.surah_id} value={s.surah_id}>
+                          {s.surah_id}. {s.EnglishName}{" "}
+                          {s.ArabicName ? `(${s.ArabicName})` : ""}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        type="number"
+                        label="Ayat From"
+                        value={ayatFrom}
+                        onChange={(e) => setAyatFrom(e.target.value)}
+                        placeholder="1"
+                        inputProps={{ min: 1 }}
+                        required
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        fullWidth
+                        type="number"
+                        label="Ayat To"
+                        value={ayatTo}
+                        onChange={(e) => setAyatTo(e.target.value)}
+                        placeholder="7"
+                        inputProps={{ min: 1 }}
+                        required
+                      />
+                    </Grid>
+                  </Grid>
+
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Count"
+                    value={surahCount}
+                    onChange={(e) => setSurahCount(e.target.value)}
+                    placeholder="e.g. 7"
+                    inputProps={{ min: 1 }}
+                    helperText="Number of recitations required"
+                    required
+                  />
+                </Stack>
+              </Box>
+            )}
+
+            {/* 3. Hadith Fields */}
+            {source === "Hadith" && (
+              <Box
+                sx={{
+                  p: 2,
+                  bgcolor: "#f0f7ff",
+                  borderRadius: 2,
+                  border: "1px solid #bbdefb",
+                }}
+              >
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontWeight: "bold", color: "#1565c0", mb: 2 }}
+                >
+                  Hadith Details
+                </Typography>
+                <Stack spacing={2}>
+                  <TextField
+                    fullWidth
+                    label="Book Name"
+                    placeholder="Enter book name (e.g. Sahih Bukhari, Sahih Muslim)"
+                    value={hadithBook}
+                    onChange={(e) => setHadithBook(e.target.value)}
+                    required
+                  />
+
+                  <TextField
+                    fullWidth
+                    label="Hadith Number"
+                    placeholder="Enter hadith number (e.g. 5678)"
+                    value={hadithNumber}
+                    onChange={(e) => setHadithNumber(e.target.value)}
+                    required
+                  />
+
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Count"
+                    value={hadithCount}
+                    onChange={(e) => setHadithCount(e.target.value)}
+                    placeholder="e.g. 7"
+                    inputProps={{ min: 1 }}
+                    helperText="Number of recitations required"
+                    required
+                  />
+                </Stack>
+              </Box>
+            )}
+
+            {/* 4. Darood Fields */}
+            {source === "Darood" && (
+              <Box
+                sx={{
+                  p: 2,
+                  bgcolor: "#faf4fc",
+                  borderRadius: 2,
+                  border: "1px solid #e1bee7",
+                }}
+              >
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontWeight: "bold", color: "#6a1b9a", mb: 2 }}
+                >
+                  Darood Details
+                </Typography>
+                <Stack spacing={2}>
+                  <TextField
+                    fullWidth
+                    label="Darood Name"
+                    placeholder="Enter darood name (e.g. Darood-e-Ibrahimi, Darood-e-Taj)"
+                    value={daroodName}
+                    onChange={(e) => setDaroodName(e.target.value)}
+                    required
+                  />
+
+                  <TextField
+                    fullWidth
+                    label="Darood Number"
+                    placeholder="Enter darood number (e.g. 1)"
+                    value={daroodNumber}
+                    onChange={(e) => setDaroodNumber(e.target.value)}
+                    required
+                  />
+
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Count"
+                    value={daroodCount}
+                    onChange={(e) => setDaroodCount(e.target.value)}
+                    placeholder="e.g. 100"
+                    inputProps={{ min: 1 }}
+                    helperText="Number of recitations required"
+                    required
+                  />
+                </Stack>
+              </Box>
+            )}
+
+            {/* ── 3 & 4. + Button: Adds entry to the Recitation Card (only adds entry, does not permanently save or refresh) ── */}
+            <Button
+              variant="outlined"
+              size="large"
+              startIcon={<AddIcon />}
+              onClick={handleAddEntryToRecitationCard}
+              fullWidth
+              sx={{
+                py: 1.3,
+                borderRadius: 2,
+                fontWeight: "bold",
+                fontSize: "0.95rem",
+                color: "#1b5e20",
+                borderColor: "#1b5e20",
+                bgcolor: "rgba(27, 94, 32, 0.05)",
+                "&:hover": {
+                  borderColor: "#114015",
+                  bgcolor: "rgba(27, 94, 32, 0.12)",
+                },
+                textTransform: "none",
+              }}
+            >
+              + Add to Recitation Card
+            </Button>
+
+            {/* Staged Items Preview */}
+            {stagedCureItems.length > 0 && (
+              <Box
+                sx={{
+                  p: 2,
+                  bgcolor: "#f4f9f4",
+                  borderRadius: 2,
+                  border: "1px solid #c8e6c9",
+                }}
+              >
+                <Typography
+                  variant="subtitle2"
+                  sx={{
+                    fontWeight: "bold",
+                    color: "#1b5e20",
+                    mb: 1.5,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                  }}
+                >
+                  ✓ Added to Recitation Card ({stagedCureItems.length})
+                </Typography>
+                <Stack spacing={1}>
+                  {stagedCureItems.map((item, idx) => (
+                    <Box
+                      key={item.id || idx}
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        p: 1.2,
+                        bgcolor: "#fff",
+                        borderRadius: 1.5,
+                        border: "1px solid #e0e0e0",
+                      }}
+                    >
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography
+                          variant="body2"
+                          fontWeight="bold"
+                          sx={{ color: "text.primary" }}
+                        >
+                          {item.name ||
+                            item.surahName ||
+                            item.bookName ||
+                            item.daroodName}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ display: "block" }}
+                        >
+                          {item.source === "Surah"
+                            ? `Surah · Ayat ${item.ayat_from || item.ayatFrom || 1}-${item.ayat_to || item.ayatTo || 7}`
+                            : item.source === "Hadith"
+                              ? `Hadith · #${item.hadithNumber}`
+                              : `Darood · #${item.daroodNumber}`}
+                          {" · "}{item.count || item.target} recitations
+                        </Typography>
+                      </Box>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleRemoveStagedItem(idx)}
+                        title="Remove from Recitation Card"
+                      >
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+            <Divider sx={{ my: 1 }} />
+
+            {/* ── 5 & 6. Separate Save Button: Permanently saves complete cure (remains available after refresh) ── */}
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<SaveIcon />}
+              onClick={handleSaveCompleteCure}
+              fullWidth
+              sx={{
+                py: 1.5,
+                borderRadius: 2,
+                fontWeight: "bold",
+                fontSize: "1rem",
+                bgcolor: "#1b5e20",
+                "&:hover": { bgcolor: "#114015" },
+                textTransform: "none",
+                boxShadow: "0 4px 14px rgba(27, 94, 32, 0.35)",
+              }}
+            >
+              Save Complete Cure
+            </Button>
+          </Stack>
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };
